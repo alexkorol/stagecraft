@@ -1,0 +1,187 @@
+/* Grid Styles */
+.grid-cell {
+    transition: all 0.2s ease-in-out;
+    position: relative;
+}
+
+.grid-cell:hover::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-color: rgba(59, 130, 246, 0.1);
+    pointer-events: none;
+}
+
+.grid-cell.selected {
+    border-color: #3b82f6;
+}
+
+/* Sprite Editor Styles */
+.sprite-editor-grid {
+    display: grid;
+    gap: 1px;
+    background-color: #e5e7eb;
+    padding: 1px;
+}
+
+.sprite-pixel {
+    aspect-ratio: 1;
+    cursor: pointer;
+    transition: background-color 0.1s ease-in-out;
+}
+
+.sprite-pixel:hover {
+    opacity: 0.8;
+}
+
+/* Color Picker Styles */
+.color-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.color-swatch {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    transition: transform 0.1s ease-in-out;
+}
+
+.color-swatch:hover {
+    transform: scale(1.1);
+}
+
+.color-swatch.selected {
+    border: 2px solid #3b82f6;
+}
+
+/* Rule Editor Styles */
+.rule-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    background-color: white;
+    transition: all 0.2s ease-in-out;
+}
+
+.rule-card:hover {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Animation Keyframes */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideIn {
+    from { transform: translateY(-10px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+/* Modal Styles */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.modal-content {
+    background-color: white;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    max-width: 90vw;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: slideIn 0.2s ease-out;
+}
+
+/* Character Preview Styles */
+.character-preview {
+    width: 3rem;
+    height: 3rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.25rem;
+    overflow: hidden;
+}
+
+/* Toolbar Styles */
+.toolbar {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    background-color: white;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.toolbar-button {
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    background-color: #f3f4f6;
+    transition: all 0.2s ease-in-out;
+}
+
+.toolbar-button:hover {
+    background-color: #e5e7eb;
+}
+
+.toolbar-button.active {
+    background-color: #3b82f6;
+    color: white;
+}
+
+/* Simulation Controls */
+.simulation-controls {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.5rem;
+    background-color: white;
+    border-top: 1px solid #e5e7eb;
+}
+
+/* Toast Notifications */
+.toast {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    background-color: white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    animation: slideIn 0.2s ease-out;
+}
+
+.toast-success {
+    background-color: #10b981;
+    color: white;
+}
+
+.toast-error {
+    background-color: #ef4444;
+    color: white;
+}
+
+/* Responsive Design */
+@media (max-width: 640px) {
+    .grid-cell {
+        width: 40px;
+        height: 40px;
+    }
+
+    .toolbar {
+        flex-wrap: wrap;
+    }
+
+    .modal-content {
+        width: 95vw;
+        max-height: 95vh;
+    }
+}

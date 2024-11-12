@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StageCraft Creator</title>
+    
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/styles.css">
+    
+    <!-- React via CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        /* Immediate styles while CSS loads */
+        .grid-cell {
+            width: 50px;
+            height: 50px;
+            border: 1px solid #e5e7eb;
+            transition: background-color 0.2s;
+        }
+        
+        .sprite-pixel {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .color-picker-cell {
+            width: 32px;
+            height: 32px;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+        
+        .color-picker-cell.selected {
+            border-color: #3b82f6;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div id="root"></div>
+
+    <!-- Main App Component -->
+    <script type="text/babel" src="js/components/App.js"></script>
+    
+    <!-- Components -->
+    <script type="text/babel" src="js/components/Grid.js"></script>
+    <script type="text/babel" src="js/components/SpriteEditor.js"></script>
+    <script type="text/babel" src="js/components/RuleEditor.js"></script>
+    <script type="text/babel" src="js/components/CharacterPalette.js"></script>
+    <script type="text/babel" src="js/components/Controls.js"></script>
+    
+    <!-- Utils -->
+    <script type="text/babel" src="js/utils/constants.js"></script>
+    <script type="text/babel" src="js/utils/storage.js"></script>
+    
+    <!-- Initialize App -->
+    <script type="text/babel">
+        ReactDOM.render(
+            <React.StrictMode>
+                <App />
+            </React.StrictMode>,
+            document.getElementById('root')
+        );
+    </script>
+</body>
+</html>
