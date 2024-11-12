@@ -11,13 +11,40 @@
 
     <style>
         .grid-cell {
-            width: 50px;
-            height: 50px;
+            width: 64px;  /* Increased from 50px */
+            height: 64px;
             border: 1px solid #e5e7eb;
         }
         .sprite-pixel {
             width: 100%;
             height: 100%;
+        }
+        .tool-button {
+            width: 48px;
+            height: 48px;
+            cursor: grab;
+            transition: transform 0.2s;
+        }
+        .tool-button:active {
+            cursor: grabbing;
+            transform: scale(0.95);
+        }
+        .stage-container {
+            min-width: 600px;  /* Minimum stage width */
+            margin: 2rem auto;
+            position: relative;
+        }
+        .resize-handle {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            background: #e5e7eb;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 10;
         }
     </style>
 </head>
@@ -25,23 +52,370 @@
     <div id="root"></div>
 
     <script type="text/babel">
+        const { useState, useRef, useEffect } = React;
+        const { createRoot } = ReactDOM;
+
+        const COLORS = [
+            '#000000', '#FFFFFF', '#FF0000', '#00FF00', '#0000FF', 
+            '#FFFF00', '#FF00FF', '#00FFFF', '#FFA500', '#800080'
+        ];
+
+        // Visual Rule Editor Component
+        const VisualRuleEditor = ({ character, onSave, onCancel }) => {
+            const [beforeState, setBeforeState] = useState(
+                Array(3).fill().map(() => Array(3).fill(null))
+            );
+            const [afterState, setAfterState] = useState(
+                Array(3).fill().map(() => Array(3).fill(null))
+            );
+
+            const handleCellClick = (state, setState, x, y) => {
+                const newState = state.map(row => [...row]);
+                newState[y][x] = character;
+                setState(newState);
+            };
+
+            const renderGrid = (state, setState) => (
+                <div className="grid grid-cols-3 gap-px bg-gray-200 p-1">
+                    {state.map((row, y) =>
+                        row.map((cell, x) => (
+                            <div
+                                key={`${x}-${y}`}
+                                className="w-12 h-12 bg-white hover:bg-gray-50 cursor-pointer"
+                                onClick={() => handleCellClick(state, setState, x, y)}
+                            >
+                                {cell && (
+                                    <div className="w-full h-full grid grid-cols-8 grid-rows-8">
+                                        {cell.sprite.map((row, i) =>
+                                            row.map((color, j) => (
+                                                <div
+                                                    key={`${i}-${j}`}
+                                                    className="sprite-pixel"
+                                                    style={{ backgroundColor: color }}
+                                                />
+                                            ))
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        ))
+                    )}
+                </div>
+            );
+
+            const deriveMoveRule = () => {
+                let beforePos, afterPos;
+                for (let y = 0; y < 3; y++) {
+                    for (let x = 0; x < 3; x++) {
+                        if (beforeState[y][x]) beforePos = { x, y };
+                        if (afterState[y][x]) afterPos = { x, y };
+                    }
+                }
+
+                if (!beforePos || !afterPos) return null;
+
+                const dx = afterPos.x - beforePos.x;
+                const dy = afterPos.y - beforePos.y;
+
+                let direction;
+                if (dx === 1) direction = 'right';
+                else if (dx === -1) direction = 'left';
+                else if (dy === 1) direction = 'down';
+                else if (dy === -1) direction = 'up';
+                else return null;
+
+                return { action: 'move', direction };
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                    <div className="bg-white p-4 rounded-lg shadow-lg">
+                        <h3 className="font-medium mb-4">Visual Rule Editor</h3>
+                        <div className="flex gap-8">
+                            <div>
+                                <h4 className="mb-2">Before:</h4>
+                                {renderGrid(beforeState, setBeforeState)}
+                            </div>
+                            <div>
+                                <h4 className="mb-2">After:</h4>
+                                {renderGrid(afterState, setAfterState)}
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-4">
+                            <button
+                                className="px-4 py-2 bg-gray-200 rounded"
+                                onClick={onCancel}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className="px-4 py-2 bg-blue-500 text-white rounded"
+                                onClick={() => {
+                                    const rule = deriveMoveRule();
+                                    if (rule) onSave(rule);
+                                }}
+                            >
+                                Save Rule
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Add new sprite editor tools
+        const tools = {
+            PENCIL: 'pencil',
+            FILL: 'fill',
+            ERASER: 'eraser'
+        };
+
+        // Import components
+        const Stage = ({ gridSize, characters, handleCellClick }) => {
+            const layers = {
+                background: characters.filter(c => c.layer === 'background'),
+                main: characters.filter(c => c.layer === 'main' || !c.layer),
+                foreground: characters.filter(c => c.layer === 'foreground')
+            };
+
+            return (
+                <div className="relative">
+                    {Object.entries(layers).map(([layer, chars]) => (
+                        <div key={layer} className={`absolute inset-0 ${layer === 'background' ? 'z-0' : layer === 'main' ? 'z-10' : 'z-20'}`}>
+                            <div className="grid gap-px bg-gray-200 p-1 w-fit">
+                                {Array(gridSize).fill().map((_, y) => (
+                                    <div key={y} className="flex">
+                                        {Array(gridSize).fill().map((_, x) => {
+                                            const char = chars.find(c => c.x === x && c.y === y);
+                                            return (
+                                                <div
+                                                    key={`${x}-${y}`}
+                                                    className="grid-cell bg-white hover:bg-gray-50 cursor-pointer"
+                                                    onClick={() => handleCellClick(x, y)}
+                                                >
+                                                    {char && (
+                                                        <div className="w-full h-full grid grid-cols-8 grid-rows-8">
+                                                            {char.sprite.map((row, i) =>
+                                                                row.map((color, j) => (
+                                                                    <div
+                                                                        key={`${i}-${j}`}
+                                                                        className="sprite-pixel"
+                                                                        style={{ backgroundColor: color }}
+                                                                    />
+                                                                ))
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            );
+        };
+
+        const SpriteEditor = ({ selectedColor, sprite, setSprite }) => {
+            const [currentTool, setCurrentTool] = useState(tools.PENCIL);
+
+            const handlePixelClick = (x, y) => {
+                const newSprite = [...sprite];
+                if (currentTool === tools.FILL) {
+                    const targetColor = sprite[y][x];
+                    const fill = (x, y, targetColor) => {
+                        if (x < 0 || x >= 8 || y < 0 || y >= 8) return;
+                        if (newSprite[y][x] !== targetColor) return;
+                        newSprite[y][x] = selectedColor;
+                        fill(x + 1, y, targetColor);
+                        fill(x - 1, y, targetColor);
+                        fill(x, y + 1, targetColor);
+                        fill(x, y - 1, targetColor);
+                    };
+                    fill(x, y, targetColor);
+                } else {
+                    newSprite[y][x] = currentTool === tools.ERASER ? 'transparent' : selectedColor;
+                }
+                setSprite(newSprite);
+            };
+
+            return (
+                <div className="space-y-4">
+                    <div className="flex gap-2 flex-wrap">
+                        {COLORS.map(color => (
+                            <div
+                                key={color}
+                                className={`w-8 h-8 cursor-pointer border-2 ${
+                                    selectedColor === color ? 'border-blue-500' : 'border-gray-300'
+                                }`}
+                                style={{ backgroundColor: color }}
+                                onClick={() => setSelectedColor(color)}
+                            />
+                        ))}
+                    </div>
+                    <div className="flex gap-2 mb-2">
+                        {Object.values(tools).map(tool => (
+                            <button
+                                key={tool}
+                                className={`px-2 py-1 rounded ${currentTool === tool ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+                                onClick={() => setCurrentTool(tool)}
+                            >
+                                {tool}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="grid grid-cols-8 grid-rows-8 gap-1">
+                        {sprite.map((row, y) =>
+                            row.map((color, x) => (
+                                <div
+                                    key={`${x}-${y}`}
+                                    className="w-6 h-6 cursor-pointer"
+                                    style={{ backgroundColor: color }}
+                                    onClick={() => handlePixelClick(x, y)}
+                                />
+                            ))
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const RuleEditor = ({ character, setCharacter }) => {
+            const [showVisualEditor, setShowVisualEditor] = useState(false);
+
+            const handleSaveRule = (rule) => {
+                const newRules = [...character.rules, rule];
+                setCharacter({ ...character, rules: newRules });
+                setShowVisualEditor(false);
+            };
+
+            return (
+                <div className="p-4 bg-white rounded shadow">
+                    <h3 className="font-medium mb-2">Rules</h3>
+                    <button
+                        className="px-4 py-2 bg-blue-500 text-white rounded mb-4"
+                        onClick={() => setShowVisualEditor(true)}
+                    >
+                        Add Visual Rule
+                    </button>
+                    
+                    <div className="space-y-2">
+                        {character.rules.map((rule, index) => (
+                            <div key={index} className="p-2 border rounded">
+                                {rule.action} → {rule.direction}
+                            </div>
+                        ))}
+                    </div>
+
+                    {showVisualEditor && (
+                        <VisualRuleEditor
+                            character={character}
+                            onSave={handleSaveRule}
+                            onCancel={() => setShowVisualEditor(false)}
+                        />
+                    )}
+                </div>
+            );
+        };
+
+        const CharacterList = ({ characters, selectedCharacter, setSelectedCharacter, handleDeleteCharacter }) => (
+            <div className="w-64 bg-white p-4 rounded-lg shadow">
+                <h3 className="font-medium mb-4">Characters</h3>
+                <div className="space-y-2">
+                    {characters.map(char => (
+                        <div
+                            key={char.id}
+                            className={`p-2 border rounded ${selectedCharacter && selectedCharacter.id === char.id ? 'border-blue-500 bg-blue-50' : ''}`}
+                            onClick={() => setSelectedCharacter(char)}
+                        >
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 border bg-white grid grid-cols-8 grid-rows-8">
+                                    {char.sprite.map((row, i) =>
+                                        row.map((color, j) => (
+                                            <div
+                                                key={`${i}-${j}`}
+                                                className="sprite-pixel"
+                                                style={{ backgroundColor: color }}
+                                            />
+                                        ))
+                                    )}
+                                </div>
+                                <span className="flex-1">Character {char.id.toString().slice(-4)}</span>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteCharacter(char.id);
+                                    }}
+                                    className="text-red-500 hover:text-red-700"
+                                >
+                                    &times;
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+
+        const Controls = ({ isRunning, toggleSimulation, speed, setSpeed, intervalId, setIntervalId, setCharacters, moveCharacter }) => (
+            <div className="mt-4 flex items-center gap-4">
+                <button
+                    onClick={toggleSimulation}
+                    className={`px-4 py-2 rounded ${isRunning ? 'bg-red-500' : 'bg-green-500'} text-white`}
+                >
+                    {isRunning ? 'Stop' : 'Start'}
+                </button>
+                <select
+                    value={speed}
+                    onChange={(e) => {
+                        const newSpeed = Number(e.target.value);
+                        setSpeed(newSpeed);
+                        if (isRunning) {
+                            clearInterval(intervalId);
+                            const id = setInterval(() => {
+                                setCharacters(chars => chars.map(moveCharacter));
+                            }, newSpeed);
+                            setIntervalId(id);
+                        }
+                    }}
+                    className="p-2 border rounded"
+                    disabled={isRunning}
+                >
+                    <option value={2000}>Slow</option>
+                    <option value={1000}>Normal</option>
+                    <option value={500}>Fast</option>
+                    <option value={250}>Very Fast</option>
+                </select>
+                {isRunning && (
+                    <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                        <span className="text-sm text-gray-600">Simulation running...</span>
+                    </div>
+                )}
+            </div>
+        );
+
         const App = () => {
-            const [characters, setCharacters] = React.useState([]);
-            const [selectedCharacter, setSelectedCharacter] = React.useState(null);
-            const [isRunning, setIsRunning] = React.useState(false);
-            const [intervalId, setIntervalId] = React.useState(null);
-            const [speed, setSpeed] = React.useState(1000);
-            const [selectedColor, setSelectedColor] = React.useState('#000000');
-            const [statusMessage, setStatusMessage] = React.useState('Click "Add Character" to begin');
-            const gridSize = 8;
+            const [characters, setCharacters] = useState([]);
+            const [selectedCharacter, setSelectedCharacter] = useState(null);
+            const [isRunning, setIsRunning] = useState(false);
+            const [intervalId, setIntervalId] = useState(null);
+            const [speed, setSpeed] = useState(1000);
+            const [selectedColor, setSelectedColor] = useState('#000000');
+            const [statusMessage, setStatusMessage] = useState('Click "Add Character" to begin');
+            const [gridSize, setGridSize] = useState(8);
 
             const handleAddCharacter = () => {
                 const newCharacter = {
                     id: Date.now(),
-                    sprite: Array(8).fill().map(() => Array(8).fill(selectedColor)),
+                    sprite: Array(8).fill().map(() => Array(8).fill('transparent')),
                     x: -1,
                     y: -1,
-                    direction: 'right'
+                    direction: 'right',
+                    layer: 'main',
+                    rules: []
                 };
                 setCharacters([...characters, newCharacter]);
                 setSelectedCharacter(newCharacter);
@@ -117,192 +491,17 @@
                 setIsRunning(!isRunning);
             };
 
-            React.useEffect(() => {
+            const handleGridResize = (newSize) => {
+                setGridSize(newSize);
+            };
+
+            useEffect(() => {
                 return () => {
                     if (intervalId) {
                         clearInterval(intervalId);
                     }
                 };
             }, [intervalId]);
-
-            const Grid = () => {
-                const grid = Array(gridSize).fill().map(() => Array(gridSize).fill(null));
-                characters.forEach(char => {
-                    if (char.x >= 0 && char.x < gridSize && char.y >= 0 && char.y < gridSize) {
-                        grid[char.y][char.x] = char;
-                    }
-                });
-
-                return (
-                    <div>
-                        <div className="grid gap-px bg-gray-200 p-1 w-fit">
-                            {grid.map((row, y) => (
-                                <div key={y} className="flex">
-                                    {row.map((cell, x) => (
-                                        <div
-                                            key={`${x}-${y}`}
-                                            className="grid-cell bg-white hover:bg-gray-50 cursor-pointer"
-                                            onClick={() => handleCellClick(x, y)}
-                                        >
-                                            {cell && (
-                                                <div className="w-full h-full grid grid-cols-8 grid-rows-8">
-                                                    {cell.sprite.map((row, i) =>
-                                                        row.map((color, j) => (
-                                                            <div
-                                                                key={`${i}-${j}`}
-                                                                className="sprite-pixel"
-                                                                style={{ backgroundColor: color }}
-                                                            />
-                                                        ))
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            ))}
-                        </div>
-                    <div className="mt-4 flex items-center gap-4">
-                        <button
-                            onClick={toggleSimulation}
-                            className={`px-4 py-2 rounded ${
-                                isRunning ? 'bg-red-500' : 'bg-green-500'
-                            } text-white`}
-                        >
-                            {isRunning ? 'Stop' : 'Start'}
-                        </button>
-                        <select
-                            value={speed}
-                            onChange={(e) => {
-                                const newSpeed = Number(e.target.value);
-                                setSpeed(newSpeed);
-                                if (isRunning) {
-                                    clearInterval(intervalId);
-                                    const id = setInterval(() => {
-                                        setCharacters(chars => chars.map(moveCharacter));
-                                    }, newSpeed);
-                                    setIntervalId(id);
-                                }
-                            }}
-                            className="p-2 border rounded"
-                            disabled={isRunning}
-                        >
-                            <option value={2000}>Slow</option>
-                            <option value={1000}>Normal</option>
-                            <option value={500}>Fast</option>
-                            <option value={250}>Very Fast</option>
-                        </select>
-                        {isRunning && (
-                            <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                                <span className="text-sm text-gray-600">Simulation running...</span>
-                            </div>
-                        )}
-                    </div>
-                    </div>
-                );
-            };
-
-            const ColorPicker = () => {
-                const colors = [
-                    '#000000', '#FF0000', '#00FF00', '#0000FF',
-                    '#FFFF00', '#FF00FF', '#00FFFF', '#FFA500'
-                ];
-
-                return (
-                    <div className="flex gap-2 mb-4">
-                        {colors.map(color => (
-                            <button
-                                key={color}
-                                className={`w-8 h-8 rounded-full border-2 ${
-                                    selectedColor === color ? 'border-blue-500' : 'border-gray-200'
-                                }`}
-                                style={{ backgroundColor: color }}
-                                onClick={() => setSelectedColor(color)}
-                            />
-                        ))}
-                    </div>
-                );
-            };
-
-            const CharacterPalette = () => (
-                <div className="w-64 bg-white p-4 rounded-lg shadow">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="font-medium">Characters</h3>
-                        <button
-                            onClick={handleAddCharacter}
-                            className="px-2 py-1 text-sm bg-blue-500 text-white rounded"
-                        >
-                            Add Character
-                        </button>
-                    </div>
-                    <ColorPicker />
-                    <div className="space-y-2">
-                        {characters.map(char => (
-                            <div
-                                key={char.id}
-                                className={`p-2 border rounded ${
-                                    selectedCharacter && selectedCharacter.id === char.id ? 'border-blue-500 bg-blue-50' : ''
-                                }`}
-                            >
-                                <div className="flex items-center gap-2 cursor-pointer"
-                                    onClick={() => setSelectedCharacter(char)}>
-                                    <div className="w-8 h-8 border bg-white grid grid-cols-8 grid-rows-8">
-                                        {char.sprite.map((row, i) =>
-                                            row.map((color, j) => (
-                                                <div
-                                                    key={`${i}-${j}`}
-                                                    className="sprite-pixel"
-                                                    style={{ backgroundColor: color }}
-                                                />
-                                            ))
-                                        )}
-                                    </div>
-                                    <span className="flex-1">Character {char.id.toString().slice(-4)}</span>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDeleteCharacter(char.id);
-                                        }}
-                                        className="text-red-500 hover:text-red-700"
-                                    >
-                                        &times;
-                                    </button>
-                                </div>
-                                {/* Direction Controls */}
-                                <div className="grid grid-cols-3 gap-1 mt-2">
-                                    <button
-                                        onClick={() => handleDirectionChange(char.id, 'left')}
-                                        className={`p-1 text-xs ${char.direction === 'left' ? 'bg-blue-500 text-white' : 'bg-gray-100'} rounded`}
-                                    >
-                                        Left
-                                    </button>
-                                    <button
-                                        onClick={() => handleDirectionChange(char.id, 'up')}
-                                        className={`p-1 text-xs ${char.direction === 'up' ? 'bg-blue-500 text-white' : 'bg-gray-100'} rounded`}
-                                    >
-                                        Up
-                                    </button>
-                                    <button
-                                        onClick={() => handleDirectionChange(char.id, 'right')}
-                                        className={`p-1 text-xs ${char.direction === 'right' ? 'bg-blue-500 text-white' : 'bg-gray-100'} rounded`}
-                                    >
-                                        Right
-                                    </button>
-                                    <div></div>
-                                    <button
-                                        onClick={() => handleDirectionChange(char.id, 'down')}
-                                        className={`p-1 text-xs ${char.direction === 'down' ? 'bg-blue-500 text-white' : 'bg-gray-100'} rounded`}
-                                    >
-                                        Down
-                                    </button>
-                                    <div></div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            );
 
             return (
                 <div className="p-8">
@@ -313,28 +512,56 @@
                         </div>
                     </div>
                     <div className="flex gap-6">
-                        <Grid />
+                        <div className="flex flex-col items-center">
+                            <Stage 
+                                gridSize={gridSize} 
+                                characters={characters} 
+                                handleCellClick={handleCellClick}
+                                onResize={handleGridResize}
+                            />
+                            <Controls
+                                isRunning={isRunning}
+                                toggleSimulation={toggleSimulation}
+                                speed={speed}
+                                setSpeed={setSpeed}
+                                intervalId={intervalId}
+                                setIntervalId={setIntervalId}
+                                setCharacters={setCharacters}
+                                moveCharacter={moveCharacter}
+                            />
+                        </div>
                         <div className="space-y-4">
-                            <CharacterPalette />
-                            <div className="bg-white p-4 rounded-lg shadow">
-                                <h3 className="font-medium mb-2">Instructions</h3>
-                                <ol className="text-sm text-gray-600 list-decimal list-inside space-y-1">
-                                    <li>Choose a color and add a character</li>
-                                    <li>Place the character on the grid</li>
-                                    <li>Set character direction</li>
-                                    <li>Press Start to run simulation</li>
-                                </ol>
-                            </div>
+                            <CharacterList
+                                characters={characters}
+                                selectedCharacter={selectedCharacter}
+                                setSelectedCharacter={setSelectedCharacter}
+                                handleDeleteCharacter={handleDeleteCharacter}
+                            />
+                            {selectedCharacter && (
+                                <SpriteEditor
+                                    selectedColor={selectedColor}
+                                    sprite={selectedCharacter.sprite}
+                                    setSprite={(newSprite) => setCharacters(chars => chars.map(char => 
+                                        char.id === selectedCharacter.id ? {...char, sprite: newSprite} : char
+                                    ))}
+                                />
+                            )}
+                            {selectedCharacter && (
+                                <RuleEditor
+                                    character={selectedCharacter}
+                                    setCharacter={(newCharacter) => setCharacters(chars => chars.map(char => 
+                                        char.id === selectedCharacter.id ? newCharacter : char
+                                    ))}
+                                />
+                            )}
                         </div>
                     </div>
                 </div>
             );
         };
 
-        ReactDOM.render(
-            <App />,
-            document.getElementById('root')
-        );
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
     </script>
 </body>
 </html>

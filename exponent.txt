@@ -1,579 +1,123 @@
+# StageCraft Creator - Modern Web-Based Remake
 
-We are creating a project that captures the core visual programming concepts of Stagecast Creator as a modern web application.
+## Core Features & Goals
+1. Visual Rule-Based Programming
+   - Before/After state visualization for rules
+   - Simple drag-and-drop interface
+   - No traditional coding required
+   - Immediate visual feedback
 
-We have just a basic working prototype of Stagecast Creator that implements some of its core features. Here's what you can do with it:
+2. Sprite Editor
+   - Built-in pixel art editor (clicking and dragging the 'palette' object button onto an object opens up the sprite editor)
+   - Support for transparency
+   - pencil, flood fill, lasso, line, square, circle, square selection, circle selection tools
+   - text tool
+   - Multiple animation frames
+   - Preview animation in editor
+   - Different sprite sizes (16x16, 32x32, 64x64)
 
-Character Creation and Management:
+3. Stage/Grid System
+   - Drag the 'star' button onto the stage to place a default star object.
+   - Flexible stage size (adjustable grid)
+   - Multiple z-depth layers (background, main, foreground)
+   - Grid overlay toggle
+   - Pan/zoom controls
 
-Create new characters and their sprites (images)
-Select characters from the palette
-Delete characters when needed
+4. Rule System
+   - Visual rule editor (clicking and dragging the 'magic wand' rule button onto an object opens a separate window)
+   - Rule editing window has an adjustable sprite and adjascent cells view, edges have arrows that can be dragged to adjust the size of the rule in cells.
+   - Trigger types:
+     * Always (continuous)
+     * Key press
+     * Collision
+     * Proximity
+     * Mouse click
+   - Actions:
+     * Move (8 directions)
+     * Change appearance
+     * Change layer
+     * Create/destroy objects
+     * Play sound
+   - example use: drag the wand on the bird object. window opens with two birds displayed like this [@] -> [@]. user drags the resizer handles near the second bird to the right and an empty cell appears: [@._] -> [@._]. Now the player drags the second bird into the empty space: [@._]-> [_.@] and clicks apply. This creates a rule for the bird to constantly move a cell to the right each tick. Now when the simulation is played with the 'play' button the bird rapidly moved to the right cell by cell. 
 
+5. Character/Object System
+   - Library of created characters
+   - Multiple instances of same character
+   - Properties:
+     * Position (x, y, z)
+     * Current appearance
+     * Custom variables (score, health, etc.)
 
-Visual Programming:
+6. Simulation Controls
+   - Play/Pause
+   - Step-by-step execution
+   - Speed control
+   - Reset
 
-Place characters on the grid by selecting them and clicking a cell
-Create rules using "Add Rule" button:
-
-Click "Add Rule"
-Click the starting position ("before" state)
-Click the ending position ("after" state)
-
-
-
-
-Simulation:
-
-Run/Stop the simulation using the play/pause button
-Characters will move according to their rules
-Rules are executed every second during simulation
-
-
-
-The interface includes:
-
-An 8x8 grid playfield
-A character palette showing all created characters
-A rules display showing all created rules
-Basic controls for running the simulation and adding rules
-
-This is a simplified version but demonstrates the core concept of "programming by demonstration" that made Stagecast Creator unique. Would you like me to add any specific features or modify the existing functionality?
-Some possible enhancements could include:
-
-deploy app on github pages
-Multiple rule conditions (e.g., checking adjacent cells)
-Different types of characters with unique behaviors
-More complex rule actions beyond simple movement
-Save/load functionality for projects. (export as a locally saveable txt file for example)
-Visual rule editor with more options
-Change stage/grid size 
-Better pixel art editor, making animations
-Flesh out rule conditions, button presses, proximity/collision, etc. 
-Have enough features to potentially be able to make complex games and simulations
-
-About StageCast Creator:
+## Project Structure
 ```
-Stagecast Creator was an innovative visual programming language designed to teach programming concepts to children through game and simulation creation. Developed in the 1990s, it evolved from earlier projects like KidSim and Cocoa at Apple's Advanced Technology Group2. The software allowed users to create interactive simulations, animations, and games without traditional text-based coding, making it accessible to young learners.
-Core Functionality
-Visual Programming Interface
-Stagecast Creator utilized a unique "programming by demonstration" approach:
-Users created rules by visually demonstrating actions in a before/after format2.
-The interface used graphical rewrite rules, eliminating the need for text-based code.
-Rules were applied to independent "characters" with graphical appearances and properties2.
-Simulation Environment
-The main workspace consisted of a grid-based "playfield" where characters and objects could be placed2.
-Users could create multiple scenes or levels within a project.
-The environment supported basic physics and collision detection.
-Rule Creation
-Users would open a rule editor for a character.
-The "before" condition would show the current state.
-Users would then manipulate the character or environment to demonstrate the desired "after" state.
-Additional conditions or actions could be added to refine the rule's behavior2.
-Object-Oriented Concepts
-Characters acted as independent objects with their own sets of rules and properties.
-The system introduced "jars" as a means of object classification, similar to classes in traditional programming2.
-3D Simulation
-A z-variable was introduced to simulate 3D space using stacked 2D sheets2.
-Interactivity
-Rules could be created to respond to user input (e.g., keyboard or mouse actions)2.
-This allowed for the creation of interactive games and simulations.
-Design Document for a Modern Web-Based Analog
-Project Overview
-Create a web-based visual programming environment inspired by Stagecast Creator, designed to introduce coding concepts to children and beginners through game and simulation creation.
-Key Features
-Visual Rule Editor
-Drag-and-drop interface for creating before/after rules
-Visual representation of characters and objects
-Ability to add conditional logic and actions
-Character and Object System
-Library of pre-made characters and objects
-Custom character/object creation tools
-Property editor for defining object attributes
-Grid-Based Playfield
-Resizable grid for placing characters and objects
-Multiple layers to simulate 3D environments
-Scene/level management system
-Event System
-User input events (keyboard, mouse, touch)
-Collision detection
-Timer-based events
-Simulation Engine
-Real-time rule processing and execution
-Basic physics simulation (gravity, momentum)
-Performance optimization for complex simulations
-Project Sharing and Community
-Ability to publish projects to a gallery
-Embed projects in websites
-Collaborative editing features
-Tutorial System
-Interactive tutorials introducing core concepts
-Example projects to study and modify
-Progressive challenges to build skills
-Export and Integration
-Export projects as standalone web applications
-Integration with learning management systems
-API for extending functionality
-User Interface Design
-Clean, modern interface inspired by block-based coding environments
-Responsive design for use on desktop and tablet devices
-Customizable themes and accessibility options
-Technical Specifications
-Frontend: React.js for UI, Three.js for rendering
-Backend: Node.js with Express, MongoDB for data storage
-Real-time collaboration: WebSocket integration
-Deployment: Containerized application for easy scaling
-Development Roadmap
-Prototype core rule creation and execution engine
-Develop basic UI and character/object system
-Implement playfield and simulation environment
-Add event system and interactivity features
-Develop sharing and community features
-Create tutorial system and example projects
-Optimize performance and add advanced features
-Beta testing and refinement
-Official launch and ongoing support
-By creating this modern web-based analog of Stagecast Creator, we can honor its legacy while introducing a new generation to the joy of visual programming and game creation. This platform will build upon the innovative concepts of the original software while leveraging current web technologies to provide a more accessible and powerful learning tool.
-Related
-
-What were the main features of Stagecast Creator that made it unique?
-
-Answer
-Stagecast Creator had several innovative features that made it a unique and groundbreaking visual programming environment for children and beginners:
-Visual Programming Interface
-Used a "programming by demonstration" approach, allowing users to create rules by visually demonstrating actions in a before/after format2.
-Utilized graphical rewrite rules instead of text-based code, making it accessible to young learners2.
-Character-Based System
-Programs were built around independent "characters" with graphical appearances and properties2.
-Each character had its own set of rules determining its behavior.
-Rule Creation
-Users could create rules by demonstrating desired actions in a visual before/after format2.
-The rule editor displayed the current state as the "before" condition.
-Users could manipulate characters or the environment to show the desired "after" state.
-Simulation Environment
-Featured a grid-based "playfield" where characters and objects could be placed and interact2.
-Supported basic physics and collision detection.
-Object-Oriented Concepts
-Introduced "jars" as a means of object classification, similar to classes in traditional programming2.
-Characters acted as independent objects with their own rules and properties.
-3D Simulation
-Included a z-variable to simulate 3D space using stacked 2D sheets2.
-Cross-Platform Compatibility
-Ported to Java to ensure cross-platform compatibility2.
-Simulations could be run as Java applets on web pages.
-Educational Focus
-Designed specifically for teaching programming concepts to children2.
-Allowed for the creation of interactive simulations, animations, and games without traditional coding.
-These features combined to create a unique visual programming environment that made coding concepts accessible to children and beginners, while still allowing for the creation of complex simulations and games.
+/src
+  /components
+    - Stage.js           # Main grid/playfield
+    - SpriteEditor.js    # Pixel art editor
+    - RuleEditor.js      # Visual rule creation
+    - CharacterList.js   # Character management
+    - Controls.js        # Simulation controls
+    - LayerControls.js   # Z-depth management
+  
+  /utils
+    - SimulationEngine.js  # Rule execution
+    - CollisionSystem.js   # Object interaction
+    - SpriteManager.js     # Sprite/animation handling
+    - StorageManager.js    # Save/load projects
 ```
 
+## Implementation Priority
+1. Basic Stage & Grid
+   - Implement flexible grid system
+   - Add layer support
+   - Basic character placement
 
+2. Sprite Editor
+   - Pixel editing tools
+   - Transparency support
+   - Animation frames
+   - Preview window
 
-basic prototype:
-```
-import React, { useState, useRef, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash2, Plus, Play, Pause, Save, Edit, Check, X, ArrowRight } from 'lucide-react';
+3. Rule System
+   - Visual before/after editor
+   - Basic movement rules
+   - Trigger conditions
+   - Rule testing/preview
 
-const GRID_SIZE = 8;
-const CELL_SIZE = 50;
-const SPRITE_GRID_SIZE = 8;
-const COLORS = [
-  '#000000', '#FFFFFF', '#FF0000', '#00FF00', '#0000FF', 
-  '#FFFF00', '#FF00FF', '#00FFFF', '#FFA500', '#800080'
-];
+4. Character System
+   - Character creation
+   - Instance management
+   - Basic properties
 
-const SpriteEditor = ({ sprite, onSave, onCancel }) => {
-  const [pixelGrid, setPixelGrid] = useState(
-    sprite?.pixels || Array(SPRITE_GRID_SIZE).fill().map(() => 
-      Array(SPRITE_GRID_SIZE).fill('#FFFFFF')
-    )
-  );
-  const [selectedColor, setSelectedColor] = useState('#000000');
+5. Simulation Engine
+   - Rule execution
+   - Collision detection
+   - Performance optimization
 
-  const handlePixelClick = (x, y) => {
-    const newGrid = [...pixelGrid];
-    newGrid[y][x] = selectedColor;
-    setPixelGrid(newGrid);
-  };
+6. UI/UX Improvements
+   - Intuitive controls
+   - Clear visual feedback
+   - Helpful tooltips
+   - Basic tutorial
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-      <Card className="w-[500px]">
-        <CardHeader>
-          <CardTitle>Sprite Editor</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {/* Color Palette */}
-            <div className="flex gap-2 flex-wrap">
-              {COLORS.map(color => (
-                <div
-                  key={color}
-                  className={`w-8 h-8 cursor-pointer border-2 ${
-                    selectedColor === color ? 'border-blue-500' : 'border-gray-300'
-                  }`}
-                  style={{ backgroundColor: color }}
-                  onClick={() => setSelectedColor(color)}
-                />
-              ))}
-            </div>
+## Technical Requirements
+- React for UI components
+- Canvas for sprite editor
+- Local storage for saving projects
+- No backend required initially
 
-            {/* Pixel Grid */}
-            <div className="grid gap-px bg-gray-200 p-1 w-fit mx-auto"
-              style={{
-                gridTemplateColumns: `repeat(${SPRITE_GRID_SIZE}, 20px)`
-              }}
-            >
-              {pixelGrid.map((row, y) =>
-                row.map((color, x) => (
-                  <div
-                    key={`${x}-${y}`}
-                    className="w-5 h-5 cursor-pointer"
-                    style={{ backgroundColor: color }}
-                    onClick={() => handlePixelClick(x, y)}
-                  />
-                ))
-              )}
-            </div>
+## Example Project: Simple Game
+1. Create player character with walk animation
+2. Add movement rules (arrow keys)
+3. Create collectible items
+4. Add collision rules for collection
+5. Add score display
+6. Create win condition
 
-            {/* Controls */}
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={onCancel}>
-                <X className="w-4 h-4 mr-2" />
-                Cancel
-              </Button>
-              <Button onClick={() => onSave(pixelGrid)}>
-                <Check className="w-4 h-4 mr-2" />
-                Save Sprite
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-};
-
-const RuleEditor = ({ character, onSave, onCancel }) => {
-  const [conditions, setConditions] = useState([]);
-  const [action, setAction] = useState('move');
-  const [direction, setDirection] = useState('right');
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-      <Card className="w-[500px]">
-        <CardHeader>
-          <CardTitle>Rule Editor</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div>
-              <h3 className="font-medium mb-2">When:</h3>
-              <Select value={action} onValueChange={setAction}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="move">Move</SelectItem>
-                  <SelectItem value="jump">Jump</SelectItem>
-                  <SelectItem value="turn">Turn</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <h3 className="font-medium mb-2">Direction:</h3>
-              <Select value={direction} onValueChange={setDirection}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="right">Right</SelectItem>
-                  <SelectItem value="left">Left</SelectItem>
-                  <SelectItem value="up">Up</SelectItem>
-                  <SelectItem value="down">Down</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={onCancel}>
-                <X className="w-4 h-4 mr-2" />
-                Cancel
-              </Button>
-              <Button onClick={() => onSave({ action, direction })}>
-                <Check className="w-4 h-4 mr-2" />
-                Save Rule
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-};
-
-const StagecastPrototype = () => {
-  const [characters, setCharacters] = useState([]);
-  const [selectedCharacter, setSelectedCharacter] = useState(null);
-  const [rules, setRules] = useState([]);
-  const [isRunning, setIsRunning] = useState(false);
-  const [showSpriteEditor, setShowSpriteEditor] = useState(false);
-  const [showRuleEditor, setShowRuleEditor] = useState(false);
-  const gridRef = useRef(null);
-
-  const grid = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(null));
-  characters.forEach(char => {
-    if (char.x >= 0 && char.x < GRID_SIZE && char.y >= 0 && char.y < GRID_SIZE) {
-      grid[char.y][char.x] = char;
-    }
-  });
-
-  const handleCellClick = (x, y) => {
-    if (selectedCharacter) {
-      const updatedCharacters = characters.map(char =>
-        char.id === selectedCharacter.id 
-          ? { ...char, x, y }
-          : char
-      );
-      setCharacters(updatedCharacters);
-    }
-  };
-
-  const createCharacter = () => {
-    setShowSpriteEditor(true);
-  };
-
-  const handleSaveSprite = (pixels) => {
-    const newCharacter = {
-      id: Date.now(),
-      pixels,
-      x: -1,
-      y: -1,
-      rules: []
-    };
-    setCharacters([...characters, newCharacter]);
-    setSelectedCharacter(newCharacter);
-    setShowSpriteEditor(false);
-  };
-
-  const handleSaveRule = (ruleDetails) => {
-    const newRule = {
-      id: Date.now(),
-      characterId: selectedCharacter.id,
-      ...ruleDetails
-    };
-    setRules([...rules, newRule]);
-    setShowRuleEditor(false);
-  };
-
-  const deleteCharacter = (charId) => {
-    setCharacters(characters.filter(char => char.id !== charId));
-    setRules(rules.filter(rule => rule.characterId !== charId));
-    if (selectedCharacter?.id === charId) {
-      setSelectedCharacter(null);
-    }
-  };
-
-  useEffect(() => {
-    let interval;
-    if (isRunning) {
-      interval = setInterval(() => {
-        setCharacters(prevCharacters => {
-          return prevCharacters.map(char => {
-            const charRules = rules.filter(rule => rule.characterId === char.id);
-            if (charRules.length > 0) {
-              const rule = charRules[0];
-              let newX = char.x;
-              let newY = char.y;
-
-              switch(rule.direction) {
-                case 'right':
-                  newX = Math.min(char.x + 1, GRID_SIZE - 1);
-                  break;
-                case 'left':
-                  newX = Math.max(char.x - 1, 0);
-                  break;
-                case 'up':
-                  newY = Math.max(char.y - 1, 0);
-                  break;
-                case 'down':
-                  newY = Math.min(char.y + 1, GRID_SIZE - 1);
-                  break;
-              }
-
-              return {
-                ...char,
-                x: newX,
-                y: newY
-              };
-            }
-            return char;
-          });
-        });
-      }, 500);
-    }
-    return () => clearInterval(interval);
-  }, [isRunning, rules]);
-
-  const renderCharacterSprite = (char) => {
-    if (!char.pixels) return null;
-    
-    return (
-      <div
-        className="w-full h-full"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: `repeat(${SPRITE_GRID_SIZE}, 1fr)`
-        }}
-      >
-        {char.pixels.map((row, y) =>
-          row.map((color, x) => (
-            <div
-              key={`${x}-${y}`}
-              style={{ backgroundColor: color }}
-              className="w-full h-full"
-            />
-          ))
-        )}
-      </div>
-    );
-  };
-
-  return (
-    <div className="p-4 max-w-4xl mx-auto">
-      <Card>
-        <CardHeader>
-          <CardTitle>Stagecast Creator Web Prototype</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-4">
-            <div className="flex-1">
-              {/* Grid */}
-              <div 
-                ref={gridRef}
-                className="grid gap-px bg-gray-200 p-1 w-fit"
-                style={{
-                  gridTemplateColumns: `repeat(${GRID_SIZE}, ${CELL_SIZE}px)`
-                }}
-              >
-                {grid.map((row, y) =>
-                  row.map((cell, x) => (
-                    <div
-                      key={`${x}-${y}`}
-                      className="bg-white hover:bg-gray-50 cursor-pointer transition-colors"
-                      style={{
-                        width: CELL_SIZE,
-                        height: CELL_SIZE,
-                        border: '1px solid #e5e7eb'
-                      }}
-                      onClick={() => handleCellClick(x, y)}
-                    >
-                      {cell && renderCharacterSprite(cell)}
-                    </div>
-                  ))
-                )}
-              </div>
-
-              {/* Controls */}
-              <div className="flex gap-2 mt-4">
-                <Button 
-                  onClick={() => setIsRunning(!isRunning)}
-                  variant="outline"
-                >
-                  {isRunning ? <Pause className="w-4 h-4 mr-2" /> : <Play className="w-4 h-4 mr-2" />}
-                  {isRunning ? 'Stop' : 'Run'}
-                </Button>
-              </div>
-            </div>
-
-            {/* Character Palette */}
-            <div className="w-48">
-              <h3 className="font-medium mb-2">Characters</h3>
-              <div className="space-y-2">
-                {characters.map(char => (
-                  <div 
-                    key={char.id}
-                    className={`p-2 border rounded flex items-center gap-2 cursor-pointer ${
-                      selectedCharacter?.id === char.id ? 'border-blue-500' : ''
-                    }`}
-                    onClick={() => setSelectedCharacter(char)}
-                  >
-                    <div className="w-6 h-6 border">
-                      {renderCharacterSprite(char)}
-                    </div>
-                    <span className="flex-1">Character {char.id}</span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteCharacter(char.id);
-                      }}
-                      className="text-gray-400 hover:text-red-500"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-                <Button
-                  onClick={createCharacter}
-                  variant="outline"
-                  className="w-full"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Character
-                </Button>
-              </div>
-
-              {selectedCharacter && (
-                <div className="mt-4">
-                  <Button
-                    onClick={() => setShowRuleEditor(true)}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Rule
-                  </Button>
-                </div>
-              )}
-
-              {/* Rules Display */}
-              <h3 className="font-medium mb-2 mt-4">Rules</h3>
-              <div className="space-y-2">
-                {rules.map(rule => (
-                  <div key={rule.id} className="p-2 border rounded text-sm">
-                    <div className="flex items-center gap-2">
-                      <span>{rule.action}</span>
-                      <ArrowRight className="w-4 h-4" />
-                      <span>{rule.direction}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {showSpriteEditor && (
-        <SpriteEditor
-          onSave={handleSaveSprite}
-          onCancel={() => setShowSpriteEditor(false)}
-        />
-      )}
-
-      {showRuleEditor && (
-        <RuleEditor
-          character={selectedCharacter}
-          onSave={handleSaveRule}
-          onCancel={() => setShowRuleEditor(false)}
-        />
-      )}
-    </div>
-  );
-};
-
-export default StagecastPrototype;
-```
+This specification focuses on the core features that made Stagecast Creator unique and educational, without getting bogged down in unnecessary complexity. Each component should be simple, focused, and contribute to the main goal of teaching programming concepts through visual rules.
