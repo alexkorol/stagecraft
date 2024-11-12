@@ -1,206 +1,190 @@
 class AnimationManager {
     constructor() {
-        this.animations = new Map();
-        this.currentFrame = 0;
-        this.isPlaying = false;
-        this.frameRate = 60;
-        this.lastFrameTime = 0;
+        this.animations = new Map(); // characterId -> animation state
+        this.lastFrameTime = performance.now();
+        this.isRunning = false;
     }
 
-    // Add a new animation sequence
-    addAnimation(characterId, animationName, frames, options = {}) {
-        const animation = {
+    // Add or update an animation for a character
+    setAnimation(characterId, {
+        frames,
+        frameRate = 8,
+        loop = true,
+        onComplete = null,
+        transitionDuration = 200 // ms for movement transitions
+    }) {
+        this.animations.set(characterId, {
             frames,
+            frameRate,
+            loop,
+            onComplete,
             currentFrame: 0,
-            frameDelay: Math.floor(60 / (options.fps || 12)),
-            frameCounter: 0,
-            loop: options.loop !== false,
-            onComplete: options.onComplete,
-            isPlaying: false
-        };
-
-        if (!this.animations.has(characterId)) {
-            this.animations.set(characterId, new Map());
-        }
-        
-        this.animations.get(characterId).set(animationName, animation);
-    }
-
-    // Start playing an animation
-    play(characterId, animationName) {
-        const charAnimations = this.animations.get(characterId);
-        if (!charAnimations) return null;
-
-        const animation = charAnimations.get(animationName);
-        if (!animation) return null;
-
-        animation.isPlaying = true;
-        animation.currentFrame = 0;
-        animation.frameCounter = 0;
-
-        if (!this.isPlaying) {
-            this.isPlaying = true;
-            this.animate();
-        }
-
-        return animation.frames[0];
-    }
-
-    // Stop a specific animation
-    stop(characterId, animationName) {
-        const charAnimations = this.animations.get(characterId);
-        if (!charAnimations) return;
-
-        const animation = charAnimations.get(animationName);
-        if (!animation) return;
-
-        animation.isPlaying = false;
-    }
-
-    // Stop all animations
-    stopAll() {
-        this.isPlaying = false;
-        this.animations.forEach(charAnimations => {
-            charAnimations.forEach(animation => {
-                animation.isPlaying = false;
-            });
+            lastFrameChange: performance.now(),
+            frameDuration: 1000 / frameRate,
+            transitionDuration,
+            isTransitioning: false,
+            startPosition: null,
+            targetPosition: null,
+            transitionStartTime: null
         });
     }
 
-    // Main animation loop
-    animate(timestamp) {
-        if (!this.isPlaying) return;
+    // Remove an animation
+    removeAnimation(characterId) {
+        this.animations.delete(characterId);
+    }
 
-        // Calculate delta time
-        const deltaTime = timestamp - this.lastFrameTime;
-        if (deltaTime < (1000 / this.frameRate)) {
-            requestAnimationFrame(this.animate.bind(this));
-            return;
+    // Start a position transition
+    startTransition(characterId, startPos, targetPos) {
+        const animation = this.animations.get(characterId);
+        if (!animation) return;
+
+        animation.isTransitioning = true;
+        animation.startPosition = startPos;
+        animation.targetPosition = targetPos;
+        animation.transitionStartTime = performance.now();
+    }
+
+    // Get current frame for a character
+    getCurrentFrame(characterId) {
+        const animation = this.animations.get(characterId);
+        if (!animation || !animation.frames) return null;
+        return animation.frames[animation.currentFrame];
+    }
+
+    // Get interpolated position during transition
+    getInterpolatedPosition(characterId) {
+        const animation = this.animations.get(characterId);
+        if (!animation || !animation.isTransitioning) return null;
+
+        const currentTime = performance.now();
+        const elapsed = currentTime - animation.transitionStartTime;
+        const progress = Math.min(elapsed / animation.transitionDuration, 1);
+
+        // Smooth easing function
+        const easeProgress = progress < 0.5
+            ? 2 * progress * progress
+            : -1 + (4 - 2 * progress) * progress;
+
+        const startPos = animation.startPosition;
+        const targetPos = animation.targetPosition;
+
+        if (progress >= 1) {
+            animation.isTransitioning = false;
+            return targetPos;
         }
 
+        return {
+            x: startPos.x + (targetPos.x - startPos.x) * easeProgress,
+            y: startPos.y + (targetPos.y - startPos.y) * easeProgress
+        };
+    }
+
+    // Update all animations
+    update(timestamp) {
+        if (!this.isRunning) return;
+
+        const deltaTime = timestamp - this.lastFrameTime;
         this.lastFrameTime = timestamp;
-        let hasPlayingAnimations = false;
 
-        // Update all active animations
-        this.animations.forEach((charAnimations, characterId) => {
-            charAnimations.forEach((animation, animationName) => {
-                if (!animation.isPlaying) return;
-
-                hasPlayingAnimations = true;
-                animation.frameCounter++;
-
-                if (animation.frameCounter >= animation.frameDelay) {
-                    animation.frameCounter = 0;
+        this.animations.forEach((animation, characterId) => {
+            // Update frame animation
+            if (animation.frames && animation.frames.length > 1) {
+                if (timestamp - animation.lastFrameChange >= animation.frameDuration) {
                     animation.currentFrame++;
-
                     if (animation.currentFrame >= animation.frames.length) {
                         if (animation.loop) {
                             animation.currentFrame = 0;
                         } else {
-                            animation.isPlaying = false;
-                            animation.onComplete?.();
-                            return;
+                            animation.currentFrame = animation.frames.length - 1;
+                            if (animation.onComplete) {
+                                animation.onComplete();
+                            }
                         }
                     }
+                    animation.lastFrameChange = timestamp;
                 }
-            });
+            }
         });
-
-        if (hasPlayingAnimations) {
-            requestAnimationFrame(this.animate.bind(this));
-        } else {
-            this.isPlaying = false;
-        }
     }
 
-    // Get current frame for a specific animation
-    getCurrentFrame(characterId, animationName) {
-        const charAnimations = this.animations.get(characterId);
-        if (!charAnimations) return null;
+    // Start animations
+    start() {
+        this.isRunning = true;
+        this.lastFrameTime = performance.now();
+    }
 
-        const animation = charAnimations.get(animationName);
-        if (!animation) return null;
+    // Stop animations
+    stop() {
+        this.isRunning = false;
+    }
 
-        return animation.frames[animation.currentFrame];
+    // Reset all animations
+    reset() {
+        this.animations.forEach(animation => {
+            animation.currentFrame = 0;
+            animation.lastFrameChange = performance.now();
+            animation.isTransitioning = false;
+        });
+    }
+
+    // Create a simple movement animation
+    createMovementAnimation(frames, direction) {
+        return {
+            frames,
+            frameRate: 8,
+            loop: true,
+            direction
+        };
     }
 
     // Create a sprite sheet animation
     createSpriteSheetAnimation(spriteSheet, frameWidth, frameHeight, sequence) {
-        const frames = [];
-        
-        sequence.forEach(frameIndex => {
-            const x = (frameIndex % (spriteSheet.width / frameWidth)) * frameWidth;
-            const y = Math.floor(frameIndex / (spriteSheet.width / frameWidth)) * frameHeight;
-            
-            const frame = document.createElement('canvas');
-            frame.width = frameWidth;
-            frame.height = frameHeight;
-            const ctx = frame.getContext('2d');
-            
-            ctx.drawImage(
-                spriteSheet,
-                x, y, frameWidth, frameHeight,
-                0, 0, frameWidth, frameHeight
-            );
-            
-            frames.push(frame);
+        const frames = sequence.map(index => {
+            const row = Math.floor(index / (spriteSheet.width / frameWidth));
+            const col = index % (spriteSheet.width / frameWidth);
+            return {
+                x: col * frameWidth,
+                y: row * frameHeight,
+                width: frameWidth,
+                height: frameHeight
+            };
         });
-        
-        return frames;
+
+        return {
+            frames,
+            frameRate: 8,
+            loop: true
+        };
     }
 
-    // Helper method to create a simple flip-book animation from sprite data
-    createFlipBookAnimation(spriteData, numFrames) {
+    // Helper method to create a transition between two sprites
+    createTransition(fromSprite, toSprite, steps = 5) {
         const frames = [];
-        const baseSprite = spriteData;
         
-        for (let i = 0; i < numFrames; i++) {
-            // Create variations of the base sprite for the animation
-            const frame = baseSprite.map(row => [...row]);
-            // Add animation-specific modifications here
+        // Ensure sprites are the same size
+        if (fromSprite.length !== toSprite.length || 
+            fromSprite[0].length !== toSprite[0].length) {
+            throw new Error('Sprites must be the same size for transition');
+        }
+
+        for (let step = 0; step <= steps; step++) {
+            const progress = step / steps;
+            const frame = fromSprite.map((row, y) =>
+                row.map((fromPixel, x) => {
+                    if (fromPixel === toSprite[y][x]) return fromPixel;
+                    return progress < 0.5 ? fromPixel : toSprite[y][x];
+                })
+            );
             frames.push(frame);
         }
-        
-        return frames;
+
+        return {
+            frames,
+            frameRate: 12,
+            loop: false
+        };
     }
 }
 
-// React hook for using AnimationManager
-const useAnimation = () => {
-    const [animationManager] = React.useState(() => new AnimationManager());
-    const [frame, setFrame] = React.useState(0);
-
-    const addAnimation = React.useCallback((characterId, animationName, frames, options) => {
-        animationManager.addAnimation(characterId, animationName, frames, options);
-    }, [animationManager]);
-
-    const playAnimation = React.useCallback((characterId, animationName) => {
-        const initialFrame = animationManager.play(characterId, animationName);
-        setFrame(prev => prev + 1); // Force re-render
-        return initialFrame;
-    }, [animationManager]);
-
-    const stopAnimation = React.useCallback((characterId, animationName) => {
-        animationManager.stop(characterId, animationName);
-        setFrame(prev => prev + 1); // Force re-render
-    }, [animationManager]);
-
-    const getCurrentFrame = React.useCallback((characterId, animationName) => {
-        return animationManager.getCurrentFrame(characterId, animationName);
-    }, [animationManager]);
-
-    React.useEffect(() => {
-        return () => {
-            animationManager.stopAll();
-        };
-    }, [animationManager]);
-
-    return {
-        addAnimation,
-        playAnimation,
-        stopAnimation,
-        getCurrentFrame
-    };
-};
-
-export { AnimationManager, useAnimation };
+export default new AnimationManager();

@@ -1,120 +1,165 @@
-const CharacterPalette = ({
-    characters,
-    selectedCharacter,
-    onSelectCharacter,
-    onAddCharacter,
-    onDeleteCharacter,
-    onEditCharacter
+import React, { useState } from 'react';
+import { Trash2, Plus, Copy, Edit, Download } from 'lucide-react';
+import ProjectManager from '../utils/ProjectManager';
+
+const CharacterPalette = ({ 
+    characters, 
+    selectedCharacter, 
+    onSelectCharacter, 
+    onCreateCharacter,
+    onEditCharacter,
+    onDeleteCharacter 
 }) => {
+    const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+    const [characterToDelete, setCharacterToDelete] = useState(null);
+
+    const handleDelete = (character) => {
+        setCharacterToDelete(character);
+        setShowConfirmDelete(true);
+    };
+
+    const confirmDelete = () => {
+        onDeleteCharacter(characterToDelete);
+        setShowConfirmDelete(false);
+        setCharacterToDelete(null);
+    };
+
+    const duplicateCharacter = (character) => {
+        const newCharacter = {
+            ...character,
+            id: Date.now(),
+            name: `${character.name} (Copy)`,
+            x: -1,
+            y: -1
+        };
+        onCreateCharacter(newCharacter);
+    };
+
+    const exportCharacter = (character) => {
+        ProjectManager.exportSprite(character, character.name);
+    };
+
+    const renderCharacterSprite = (character) => {
+        if (!character.pixels) return null;
+
+        return (
+            <div
+                className="w-10 h-10 border"
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns: `repeat(${character.size}, 1fr)`
+                }}
+            >
+                {character.pixels.map((row, y) =>
+                    row.map((color, x) => (
+                        <div
+                            key={`${x}-${y}`}
+                            style={{ backgroundColor: color }}
+                        />
+                    ))
+                )}
+            </div>
+        );
+    };
+
     return (
-        <div>
-            <div className="flex items-center justify-between mb-2">
+        <div className="w-64 bg-white p-4 border rounded-lg">
+            <div className="flex justify-between items-center mb-4">
                 <h3 className="font-medium">Characters</h3>
                 <button
-                    onClick={onAddCharacter}
-                    className="px-2 py-1 text-sm rounded bg-blue-500 text-white hover:bg-blue-600"
+                    onClick={onCreateCharacter}
+                    className="p-1 rounded hover:bg-gray-100"
+                    title="Create New Character"
                 >
-                    Add Character
+                    <Plus className="w-4 h-4" />
                 </button>
             </div>
 
             <div className="space-y-2">
-                {characters.map(char => (
-                    <div
-                        key={char.id}
-                        className={`p-2 border rounded flex items-center gap-2 cursor-pointer transition-colors ${
-                            selectedCharacter?.id === char.id
-                                ? 'border-blue-500 bg-blue-50'
-                                : 'hover:bg-gray-50'
+                {Array.from(characters.values()).map(character => (
+                    <div 
+                        key={character.id}
+                        className={`p-2 border rounded flex items-center gap-2 cursor-pointer ${
+                            selectedCharacter?.id === character.id ? 'border-blue-500 bg-blue-50' : 'hover:bg-gray-50'
                         }`}
-                        onClick={() => onSelectCharacter(char)}
+                        onClick={() => onSelectCharacter(character)}
                     >
-                        {/* Character Preview */}
-                        <div className="w-8 h-8 border bg-white">
-                            <div
-                                className="w-full h-full grid"
-                                style={{
-                                    gridTemplateColumns: `repeat(${SPRITE_GRID_SIZE}, 1fr)`
-                                }}
-                            >
-                                {char.sprite.map((row, y) =>
-                                    row.map((color, x) => (
-                                        <div
-                                            key={`${x}-${y}`}
-                                            className="w-full h-full"
-                                            style={{ backgroundColor: color }}
-                                        />
-                                    ))
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Character Info */}
-                        <div className="flex-1 min-w-0">
-                            <div className="text-sm truncate">
-                                Character {char.id}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                                Rules: {char.rules?.length || 0}
-                            </div>
-                        </div>
-
-                        {/* Actions */}
+                        {renderCharacterSprite(character)}
+                        <span className="flex-1 text-sm truncate">
+                            {character.name || `Character ${character.id}`}
+                        </span>
                         <div className="flex gap-1">
-                            {onEditCharacter && (
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onEditCharacter(char);
-                                    }}
-                                    className="p-1 text-gray-400 hover:text-blue-500"
-                                >
-                                    <svg
-                                        className="w-4 h-4"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                                        />
-                                    </svg>
-                                </button>
-                            )}
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    onDeleteCharacter(char.id);
+                                    onEditCharacter(character);
                                 }}
-                                className="p-1 text-gray-400 hover:text-red-500"
+                                className="p-1 rounded hover:bg-gray-200"
+                                title="Edit Character"
                             >
-                                <svg
-                                    className="w-4 h-4"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                    />
-                                </svg>
+                                <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    duplicateCharacter(character);
+                                }}
+                                className="p-1 rounded hover:bg-gray-200"
+                                title="Duplicate Character"
+                            >
+                                <Copy className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    exportCharacter(character);
+                                }}
+                                className="p-1 rounded hover:bg-gray-200"
+                                title="Export Character"
+                            >
+                                <Download className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDelete(character);
+                                }}
+                                className="p-1 rounded hover:bg-red-100 text-red-600"
+                                title="Delete Character"
+                            >
+                                <Trash2 className="w-4 h-4" />
                             </button>
                         </div>
                     </div>
                 ))}
-
-                {characters.length === 0 && (
-                    <div className="text-center py-4 text-gray-500">
-                        No characters yet. Click "Add Character" to create one!
-                    </div>
-                )}
             </div>
+
+            {/* Delete Confirmation Dialog */}
+            {showConfirmDelete && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                    <div className="bg-white p-6 rounded-lg max-w-sm">
+                        <h3 className="font-medium mb-4">Delete Character</h3>
+                        <p className="mb-4">
+                            Are you sure you want to delete this character? 
+                            This action cannot be undone.
+                        </p>
+                        <div className="flex justify-end gap-2">
+                            <button
+                                className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
+                                onClick={() => setShowConfirmDelete(false)}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className="px-4 py-2 rounded bg-red-500 text-white hover:bg-red-600"
+                                onClick={confirmDelete}
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

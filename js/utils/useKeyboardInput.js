@@ -1,122 +1,135 @@
-const useKeyboardInput = (onKeyChange) => {
-    const [pressedKeys, setPressedKeys] = React.useState({});
+import { useState, useCallback, useEffect } from 'react';
+import UndoManager from './UndoManager';
 
-    React.useEffect(() => {
+export const useUndo = (initialState) => {
+    const [currentState, setCurrentState] = useState(initialState);
+
+    useEffect(() => {
+        // Record initial state
+        UndoManager.record(initialState);
+    }, []);
+
+    const setState = useCallback((newState) => {
+        setCurrentState(newState);
+        UndoManager.record(newState);
+    }, []);
+
+    const undo = useCallback(() => {
+        const previousState = UndoManager.undo();
+        if (previousState) {
+            setCurrentState(previousState);
+        }
+    }, []);
+
+    const redo = useCallback(() => {
+        const nextState = UndoManager.redo();
+        if (nextState) {
+            setCurrentState(nextState);
+        }
+    }, []);
+
+    const startBatch = useCallback(() => {
+        UndoManager.startBatch();
+    }, []);
+
+    const endBatch = useCallback((state) => {
+        UndoManager.endBatch(state);
+        if (state) {
+            setCurrentState(state);
+        }
+    }, []);
+
+    return {
+        state: currentState,
+        setState,
+        undo,
+        redo,
+        startBatch,
+        endBatch,
+        canUndo: UndoManager.canUndo(),
+        canRedo: UndoManager.canRedo()
+    };
+};
+
+// Hook for tracking keyboard input
+export const useKeyboardInput = () => {
+    const [pressedKeys, setPressedKeys] = useState(new Set());
+
+    useEffect(() => {
         const handleKeyDown = (event) => {
-            // Ignore key events if they're in an input field
-            if (event.target.tagName === 'INPUT' || 
-                event.target.tagName === 'TEXTAREA') {
-                return;
-            }
-
-            // Prevent default behavior for game control keys
-            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(event.key)) {
-                event.preventDefault();
-            }
-
-            setPressedKeys(prev => {
-                if (!prev[event.key]) {
-                    const updated = {
-                        ...prev,
-                        [event.key]: true
-                    };
-                    onKeyChange?.(updated);
-                    return updated;
-                }
-                return prev;
-            });
+            setPressedKeys(prev => new Set([...prev, event.key.toLowerCase()]));
         };
 
         const handleKeyUp = (event) => {
             setPressedKeys(prev => {
-                if (prev[event.key]) {
-                    const updated = {
-                        ...prev,
-                        [event.key]: false
-                    };
-                    onKeyChange?.(updated);
-                    return updated;
-                }
-                return prev;
-            });
-        };
-
-        // Handle loss of focus
-        const handleBlur = () => {
-            setPressedKeys(prev => {
-                if (Object.values(prev).some(Boolean)) {
-                    const updated = Object.keys(prev).reduce((acc, key) => {
-                        acc[key] = false;
-                        return acc;
-                    }, {});
-                    onKeyChange?.(updated);
-                    return updated;
-                }
-                return prev;
+                const next = new Set(prev);
+                next.delete(event.key.toLowerCase());
+                return next;
             });
         };
 
         window.addEventListener('keydown', handleKeyDown);
         window.addEventListener('keyup', handleKeyUp);
-        window.addEventListener('blur', handleBlur);
 
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('keyup', handleKeyUp);
-            window.removeEventListener('blur', handleBlur);
         };
-    }, [onKeyChange]);
+    }, []);
 
-    const isKeyPressed = React.useCallback((key) => {
-        return pressedKeys[key] || false;
+    const isKeyPressed = useCallback((key) => {
+        return pressedKeys.has(key.toLowerCase());
     }, [pressedKeys]);
 
-    const getActiveKeys = React.useCallback(() => {
-        return Object.entries(pressedKeys)
-            .filter(([, pressed]) => pressed)
-            .map(([key]) => key);
+    const isAnyKeyPressed = useCallback(() => {
+        return pressedKeys.size > 0;
+    }, [pressedKeys]);
+
+    const areKeysPressed = useCallback((keys) => {
+        return keys.every(key => pressedKeys.has(key.toLowerCase()));
     }, [pressedKeys]);
 
     return {
         pressedKeys,
         isKeyPressed,
-        getActiveKeys
+        isAnyKeyPressed,
+        areKeysPressed
     };
 };
 
-// Helper hook for handling directional input (arrows/WASD)
-const useDirectionalInput = (onDirectionChange) => {
-    const { pressedKeys } = useKeyboardInput();
-    
-    React.useEffect(() => {
-        const direction = {
-            up: pressedKeys['ArrowUp'] || pressedKeys['w'] || pressedKeys['W'],
-            down: pressedKeys['ArrowDown'] || pressedKeys['s'] || pressedKeys['S'],
-            left: pressedKeys['ArrowLeft'] || pressedKeys['a'] || pressedKeys['A'],
-            right: pressedKeys['ArrowRight'] || pressedKeys['d'] || pressedKeys['D']
+// Hook for handling keyboard shortcuts
+export const useKeyboardShortcuts = (shortcuts, deps = []) => {
+    useEffect(() => {
+        const handleKeyDown = (event) => {
+            const key = event.key.toLowerCase();
+            const ctrl = event.ctrlKey || event.metaKey;
+            const shift = event.shiftKey;
+            const alt = event.altKey;
+
+            for (const [shortcut, callback] of Object.entries(shortcuts)) {
+                const keys = shortcut.toLowerCase().split('+');
+                const requiresCtrl = keys.includes('ctrl') || keys.includes('cmd');
+                const requiresShift = keys.includes('shift');
+                const requiresAlt = keys.includes('alt');
+                const mainKey = keys.find(k => !['ctrl', 'cmd', 'shift', 'alt'].includes(k));
+
+                if (key === mainKey &&
+                    ctrl === requiresCtrl &&
+                    shift === requiresShift &&
+                    alt === requiresAlt) {
+                    event.preventDefault();
+                    callback(event);
+                }
+            }
         };
 
-        onDirectionChange?.(direction);
-    }, [pressedKeys, onDirectionChange]);
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, deps);
 };
 
-// Helper hook for handling action keys
-const useActionKeys = (actionMap) => {
-    const { isKeyPressed } = useKeyboardInput();
-
-    const checkAction = React.useCallback((actionName) => {
-        const keys = actionMap[actionName];
-        if (!keys) return false;
-
-        if (Array.isArray(keys)) {
-            return keys.some(key => isKeyPressed(key));
-        }
-        return isKeyPressed(keys);
-    }, [isKeyPressed, actionMap]);
-
-    return {
-        checkAction
-    };
+export default {
+    useUndo,
+    useKeyboardInput,
+    useKeyboardShortcuts
 };
-
-export { useKeyboardInput, useDirectionalInput, useActionKeys };

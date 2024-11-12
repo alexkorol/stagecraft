@@ -2,174 +2,226 @@ class SceneManager {
     constructor() {
         this.scenes = new Map();
         this.currentScene = null;
-        this.transitionCallbacks = new Map();
-        this.globalState = {};
+        this.isTransitioning = false;
+        this.transitionDuration = 500; // ms
     }
 
     // Add a new scene
-    addScene(sceneName, sceneData) {
+    addScene(sceneName, {
+        gridSize,
+        characters = new Map(),
+        rules = new Map(),
+        backgroundColor = '#FFFFFF',
+        backgroundImage = null,
+        onEnter = null,
+        onExit = null
+    }) {
         this.scenes.set(sceneName, {
-            ...sceneData,
-            characters: sceneData.characters || [],
-            rules: sceneData.rules || [],
-            grid: sceneData.grid || [],
-            state: sceneData.state || {},
-            onEnter: sceneData.onEnter || (() => {}),
-            onExit: sceneData.onExit || (() => {}),
-            onUpdate: sceneData.onUpdate || (() => {})
+            name: sceneName,
+            gridSize,
+            characters: new Map(characters),
+            rules: new Map(rules),
+            backgroundColor,
+            backgroundImage,
+            onEnter,
+            onExit
         });
     }
 
     // Switch to a different scene
-    async switchScene(sceneName, transitionData = {}) {
-        if (!this.scenes.has(sceneName)) {
-            throw new Error(`Scene "${sceneName}" not found`);
-        }
-
+    async switchScene(sceneName, transitionEffect = 'fade') {
+        if (this.isTransitioning || !this.scenes.has(sceneName)) return;
+        
         const previousScene = this.currentScene;
         const nextScene = this.scenes.get(sceneName);
 
-        // Execute exit callbacks
-        if (previousScene) {
-            await previousScene.onExit(this.globalState, transitionData);
+        this.isTransitioning = true;
+
+        // Call exit handler of current scene
+        if (previousScene?.onExit) {
+            await previousScene.onExit();
         }
 
-        // Execute transition callbacks
-        const transitionKey = previousScene 
-            ? `${previousScene.name}->${sceneName}`
-            : `->${sceneName}`;
-            
-        if (this.transitionCallbacks.has(transitionKey)) {
-            await this.transitionCallbacks.get(transitionKey)(
-                previousScene,
-                nextScene,
-                transitionData
-            );
-        }
+        // Perform transition effect
+        await this.performTransition(transitionEffect, previousScene, nextScene);
 
-        // Execute enter callbacks
-        await nextScene.onEnter(this.globalState, transitionData);
-
+        // Update current scene
         this.currentScene = nextScene;
-        return nextScene;
+
+        // Call enter handler of new scene
+        if (nextScene.onEnter) {
+            await nextScene.onEnter();
+        }
+
+        this.isTransitioning = false;
     }
 
-    // Register a transition callback
-    registerTransition(fromScene, toScene, callback) {
-        const key = `${fromScene}->${toScene}`;
-        this.transitionCallbacks.set(key, callback);
+    // Handle scene transitions
+    async performTransition(effect, fromScene, toScene) {
+        return new Promise(resolve => {
+            const startTime = performance.now();
+            
+            const animate = (currentTime) => {
+                const progress = Math.min(
+                    (currentTime - startTime) / this.transitionDuration,
+                    1
+                );
+
+                switch (effect) {
+                    case 'fade':
+                        this.applyFadeEffect(progress, fromScene, toScene);
+                        break;
+                    case 'slide':
+                        this.applySlideEffect(progress, fromScene, toScene);
+                        break;
+                    case 'zoom':
+                        this.applyZoomEffect(progress, fromScene, toScene);
+                        break;
+                    default:
+                        // Instant switch
+                        progress = 1;
+                        break;
+                }
+
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    resolve();
+                }
+            };
+
+            requestAnimationFrame(animate);
+        });
     }
 
-    // Update the current scene
-    update(deltaTime) {
-        if (this.currentScene && this.currentScene.onUpdate) {
-            this.currentScene.onUpdate(deltaTime, this.globalState);
+    // Transition effects
+    applyFadeEffect(progress, fromScene, toScene) {
+        if (fromScene) {
+            fromScene.opacity = 1 - progress;
+        }
+        if (toScene) {
+            toScene.opacity = progress;
         }
     }
 
-    // Get current scene data
+    applySlideEffect(progress, fromScene, toScene) {
+        if (fromScene) {
+            fromScene.position = {
+                x: -progress * 100 + '%',
+                y: 0
+            };
+        }
+        if (toScene) {
+            toScene.position = {
+                x: (1 - progress) * 100 + '%',
+                y: 0
+            };
+        }
+    }
+
+    applyZoomEffect(progress, fromScene, toScene) {
+        if (fromScene) {
+            fromScene.scale = 1 - progress * 0.5;
+            fromScene.opacity = 1 - progress;
+        }
+        if (toScene) {
+            toScene.scale = 0.5 + progress * 0.5;
+            toScene.opacity = progress;
+        }
+    }
+
+    // Get current scene
     getCurrentScene() {
         return this.currentScene;
     }
 
-    // Update global state
-    updateGlobalState(updates) {
-        this.globalState = {
-            ...this.globalState,
-            ...updates
-        };
+    // Get scene by name
+    getScene(sceneName) {
+        return this.scenes.get(sceneName);
+    }
+
+    // Update scene properties
+    updateScene(sceneName, properties) {
+        const scene = this.scenes.get(sceneName);
+        if (!scene) return;
+
+        Object.assign(scene, properties);
+    }
+
+    // Add character to current scene
+    addCharacterToScene(character) {
+        if (!this.currentScene) return;
+        this.currentScene.characters.set(character.id, character);
+    }
+
+    // Remove character from current scene
+    removeCharacterFromScene(characterId) {
+        if (!this.currentScene) return;
+        this.currentScene.characters.delete(characterId);
+    }
+
+    // Add rule to current scene
+    addRuleToScene(characterId, rule) {
+        if (!this.currentScene) return;
+        
+        if (!this.currentScene.rules.has(characterId)) {
+            this.currentScene.rules.set(characterId, []);
+        }
+        this.currentScene.rules.get(characterId).push(rule);
+    }
+
+    // Remove rule from current scene
+    removeRuleFromScene(characterId, ruleId) {
+        if (!this.currentScene) return;
+        
+        const rules = this.currentScene.rules.get(characterId);
+        if (rules) {
+            const index = rules.findIndex(r => r.id === ruleId);
+            if (index !== -1) {
+                rules.splice(index, 1);
+            }
+        }
     }
 
     // Save scene state
-    saveSceneState(sceneName, state) {
-        if (!this.scenes.has(sceneName)) return;
-        
+    saveSceneState(sceneName) {
         const scene = this.scenes.get(sceneName);
-        scene.state = {
-            ...scene.state,
-            ...state
+        if (!scene) return null;
+
+        return {
+            name: scene.name,
+            characters: Array.from(scene.characters.entries()),
+            rules: Array.from(scene.rules.entries()),
+            gridSize: scene.gridSize,
+            backgroundColor: scene.backgroundColor,
+            backgroundImage: scene.backgroundImage
         };
     }
 
     // Load scene state
-    loadSceneState(sceneName) {
-        if (!this.scenes.has(sceneName)) return null;
-        return this.scenes.get(sceneName).state;
-    }
+    loadSceneState(sceneName, state) {
+        if (!state || !this.scenes.has(sceneName)) return;
 
-    // Reset scene to initial state
-    resetScene(sceneName) {
-        if (!this.scenes.has(sceneName)) return;
-        
         const scene = this.scenes.get(sceneName);
-        scene.state = {};
-        scene.characters = [...scene.initialCharacters || []];
-        scene.rules = [...scene.initialRules || []];
+        scene.characters = new Map(state.characters);
+        scene.rules = new Map(state.rules);
+        scene.gridSize = state.gridSize;
+        scene.backgroundColor = state.backgroundColor;
+        scene.backgroundImage = state.backgroundImage;
     }
 
-    // Get all available scenes
-    getScenes() {
-        return Array.from(this.scenes.keys());
+    // Reset current scene
+    resetCurrentScene() {
+        if (!this.currentScene) return;
+        
+        // Reset all characters to their initial positions
+        this.currentScene.characters.forEach(character => {
+            if (character.initialX !== undefined && character.initialY !== undefined) {
+                character.x = character.initialX;
+                character.y = character.initialY;
+            }
+        });
     }
 }
 
-// React hook for using SceneManager
-const useSceneManager = () => {
-    const [sceneManager] = React.useState(() => new SceneManager());
-    const [currentScene, setCurrentScene] = React.useState(null);
-    const [globalState, setGlobalState] = React.useState({});
-
-    // Initialize scene manager
-    React.useEffect(() => {
-        const handleSceneChange = () => {
-            setCurrentScene(sceneManager.getCurrentScene());
-            setGlobalState(sceneManager.globalState);
-        };
-
-        // Add default scenes
-        sceneManager.addScene('main', {
-            name: 'main',
-            characters: [],
-            rules: [],
-            grid: Array(8).fill().map(() => Array(8).fill(null)),
-            onEnter: async () => {
-                // Load main scene data
-            }
-        });
-
-        // Listen for scene changes
-        sceneManager.onSceneChange = handleSceneChange;
-
-        // Switch to main scene
-        sceneManager.switchScene('main');
-
-        return () => {
-            sceneManager.onSceneChange = null;
-        };
-    }, [sceneManager]);
-
-    const switchScene = React.useCallback(async (sceneName, transitionData) => {
-        try {
-            await sceneManager.switchScene(sceneName, transitionData);
-            return true;
-        } catch (error) {
-            console.error('Failed to switch scene:', error);
-            return false;
-        }
-    }, [sceneManager]);
-
-    const updateGlobalState = React.useCallback((updates) => {
-        sceneManager.updateGlobalState(updates);
-        setGlobalState(sceneManager.globalState);
-    }, [sceneManager]);
-
-    return {
-        currentScene,
-        globalState,
-        switchScene,
-        updateGlobalState,
-        sceneManager
-    };
-};
-
-export { SceneManager, useSceneManager };
+export default new SceneManager();

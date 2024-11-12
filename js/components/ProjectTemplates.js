@@ -1,93 +1,204 @@
-const ProjectTemplates = ({ onClose, onSelectTemplate }) => {
-    const [selectedCategory, setSelectedCategory] = React.useState('all');
-    const [searchQuery, setSearchQuery] = React.useState('');
-    const [selectedTemplate, setSelectedTemplate] = React.useState(null);
+import React, { useState } from 'react';
+import { Book, Search, ChevronRight, Star, Clock, Download, Tag } from 'lucide-react';
+import ProjectManager from '../utils/ProjectManager';
 
-    const templates = [
-        {
-            id: 'simple-game',
-            name: 'Simple Game',
-            description: 'A basic game template with character movement and collision detection.',
-            category: 'games',
-            difficulty: 'beginner',
-            preview: '/templates/simple-game.png',
-            features: [
-                'Basic character movement',
-                'Simple collision detection',
-                'Score tracking',
-                'Win/lose conditions'
-            ]
-        },
-        {
-            id: 'maze-solver',
-            name: 'Maze Solver',
-            description: 'Create an AI that can solve mazes using pathfinding algorithms.',
-            category: 'simulation',
-            difficulty: 'intermediate',
-            preview: '/templates/maze-solver.png',
-            features: [
-                'Maze generation',
-                'Pathfinding algorithm',
-                'Step-by-step visualization',
-                'Multiple solving strategies'
-            ]
-        },
-        {
-            id: 'ecosystem',
-            name: 'Ecosystem Simulation',
-            description: 'Simulate a simple ecosystem with predators and prey.',
-            category: 'simulation',
-            difficulty: 'advanced',
-            preview: '/templates/ecosystem.png',
-            features: [
-                'Multiple species interaction',
-                'Population dynamics',
-                'Food chain simulation',
-                'Environmental factors'
-            ]
-        },
-        {
-            id: 'pixel-art',
-            name: 'Pixel Art Animation',
-            description: 'Create animated pixel art characters and scenes.',
-            category: 'art',
-            difficulty: 'beginner',
-            preview: '/templates/pixel-art.png',
-            features: [
-                'Frame-by-frame animation',
-                'Color palette management',
-                'Sprite sheet export',
-                'Animation preview'
-            ]
-        }
-    ];
+const CATEGORIES = [
+    'All',
+    'Games',
+    'Simulations',
+    'Animations',
+    'Tutorials'
+];
 
-    const categories = [
-        { id: 'all', name: 'All Templates' },
-        { id: 'games', name: 'Games' },
-        { id: 'simulation', name: 'Simulations' },
-        { id: 'art', name: 'Art & Animation' }
-    ];
+const DIFFICULTY_LEVELS = {
+    BEGINNER: 'beginner',
+    INTERMEDIATE: 'intermediate',
+    ADVANCED: 'advanced'
+};
 
-    const filteredTemplates = React.useMemo(() => {
-        return templates.filter(template => {
-            const matchesCategory = selectedCategory === 'all' || template.category === selectedCategory;
-            const matchesSearch = template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                                template.description.toLowerCase().includes(searchQuery.toLowerCase());
-            return matchesCategory && matchesSearch;
+const TEMPLATES = [
+    {
+        id: 'simple-platformer',
+        name: 'Simple Platformer',
+        description: 'A basic platformer game with jumping and obstacles.',
+        category: 'Games',
+        difficulty: DIFFICULTY_LEVELS.BEGINNER,
+        preview: '/templates/platformer-preview.png',
+        stars: 245,
+        tags: ['game', 'platformer', 'physics'],
+        lastUpdated: '2024-01-15'
+    },
+    {
+        id: 'particle-system',
+        name: 'Particle System',
+        description: 'Interactive particle simulation with various effects.',
+        category: 'Simulations',
+        difficulty: 'Intermediate',
+        preview: '/templates/particles-preview.png',
+        stars: 189
+    },
+    {
+        id: 'character-animation',
+        name: 'Character Animation',
+        description: 'Basic character animation with walking and idle states.',
+        category: 'Animations',
+        difficulty: 'Beginner',
+        preview: '/templates/animation-preview.png',
+        stars: 156
+    },
+    {
+        id: 'basic-tutorial',
+        name: 'Getting Started',
+        description: 'Learn the basics of StageCraft Creator.',
+        category: 'Tutorials',
+        difficulty: 'Beginner',
+        preview: '/templates/tutorial-preview.png',
+        stars: 312
+    }
+];
+
+const ProjectTemplates = ({ onSelect, onClose }) => {
+    const [selectedCategory, setSelectedCategory] = useState('All');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [sortBy, setSortBy] = useState('popular'); // 'popular', 'recent', 'name'
+    const [selectedDifficulty, setSelectedDifficulty] = useState('all');
+
+    const filterTemplates = () => {
+        return TEMPLATES.filter(template => {
+            const matchesCategory = selectedCategory === 'All' || template.category === selectedCategory;
+            const matchesDifficulty = selectedDifficulty === 'all' || template.difficulty === selectedDifficulty;
+            const matchesSearch = 
+                template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                template.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                template.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
+
+            return matchesCategory && matchesDifficulty && matchesSearch;
+        }).sort((a, b) => {
+            switch (sortBy) {
+                case 'popular':
+                    return b.stars - a.stars;
+                case 'recent':
+                    return new Date(b.lastUpdated) - new Date(a.lastUpdated);
+                case 'name':
+                    return a.name.localeCompare(b.name);
+                default:
+                    return 0;
+            }
         });
-    }, [selectedCategory, searchQuery]);
+    };
 
-    const handleSelectTemplate = () => {
-        if (selectedTemplate) {
-            onSelectTemplate(selectedTemplate);
+    const handleTemplateSelect = async (template) => {
+        try {
+            // In a real implementation, this would fetch the template from a server
+            await ProjectManager.loadTemplate(template.id);
+            onSelect(template);
             onClose();
+        } catch (error) {
+            console.error('Failed to load template:', error);
         }
     };
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-[900px] max-w-full mx-4 h-[80vh] flex flex-col">
+            <div className="bg-white rounded-lg shadow-xl w-[900px] max-w-[90vw] max-h-[90vh] flex flex-col">
+                <div className="p-6 border-b">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center space-x-2">
+                            <Book className="w-5 h-5" />
+                            <h2 className="text-xl font-semibold">Project Templates</h2>
+                        </div>
+                        <button
+                            onClick={onClose}
+                            className="text-gray-400 hover:text-gray-500"
+                        >
+                            ×
+                        </button>
+                    </div>
+
+                    {/* Search and Filters */}
+                    <div className="flex items-center gap-4">
+                        <div className="relative flex-1">
+                            <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                            <input
+                                type="text"
+                                placeholder="Search templates..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 border rounded-lg"
+                            />
+                        </div>
+                        <select
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value)}
+                            className="px-4 py-2 border rounded-lg"
+                        >
+                            <option value="popular">Most Popular</option>
+                            <option value="recent">Most Recent</option>
+                            <option value="name">Name</option>
+                        </select>
+                    </div>
+                </div>
+
+                {/* Categories */}
+                <div className="border-b">
+                    <div className="px-6 py-2 flex gap-2 overflow-x-auto">
+                        {CATEGORIES.map(category => (
+                            <button
+                                key={category}
+                                onClick={() => setSelectedCategory(category)}
+                                className={`
+                                    px-4 py-2 rounded-full whitespace-nowrap
+                                    ${selectedCategory === category
+                                        ? 'bg-blue-500 text-white'
+                                        : 'bg-gray-100 hover:bg-gray-200'
+                                    }
+                                `}
+                            >
+                                {category}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Templates Grid */}
+                <div className="flex-1 overflow-y-auto p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {sortedTemplates.map(template => (
+                            <div
+                                key={template.id}
+                                className="border rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
+                            >
+                                <img
+                                    src={template.preview}
+                                    alt={template.name}
+                                    className="w-full h-40 object-cover"
+                                />
+                                <div className="p-4">
+                                    <h3 className="font-medium mb-1">{template.name}</h3>
+                                    <p className="text-sm text-gray-600 mb-2">
+                                        {template.description}
+                                    </p>
+                                    <div className="flex items-center justify-between text-sm text-gray-500">
+                                        <span className="flex items-center">
+                                            <Star className="w-4 h-4 mr-1 text-yellow-400" />
+                                            {template.stars}
+                                        </span>
+                                        <span className="bg-gray-100 px-2 py-1 rounded">
+                                            {template.difficulty}
+                                        </span>
+                                    </div>
+                                    <button
+                                        onClick={() => handleTemplateSelect(template)}
+                                        className="mt-3 w-full py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center justify-center gap-2"
+                                    >
+                                        <Download className="w-4 h-4" />
+                                        Use Template
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-bold">Project Templates</h2>
                     <button

@@ -1,56 +1,103 @@
+import React, { useState, useEffect } from 'react';
+import { Bug, Play, Pause, RotateCcw, AlertCircle, Check, X, Eye } from 'lucide-react';
+
 const ProjectDebugger = ({ project, onClose }) => {
-    const [isRunning, setIsRunning] = React.useState(false);
-    const [breakpoints, setBreakpoints] = React.useState([]);
-    const [logs, setLogs] = React.useState([]);
-    const [selectedCharacter, setSelectedCharacter] = React.useState(null);
-    const [watchVariables, setWatchVariables] = React.useState([]);
-    const [currentStep, setCurrentStep] = React.useState(0);
+    const [isRunning, setIsRunning] = useState(false);
+    const [stepMode, setStepMode] = useState(false);
+    const [breakpoints, setBreakpoints] = useState(new Set());
+    const [logs, setLogs] = useState([]);
+    const [selectedCharacter, setSelectedCharacter] = useState(null);
+    const [watchedVariables, setWatchedVariables] = useState(new Set());
+    const [currentStep, setCurrentStep] = useState(0);
 
-    const addBreakpoint = (ruleId) => {
-        setBreakpoints(prev => [...prev, ruleId]);
-    };
+    // Track rule execution for debugging
+    const [ruleExecutions, setRuleExecutions] = useState(new Map());
 
-    const removeBreakpoint = (ruleId) => {
-        setBreakpoints(prev => prev.filter(id => id !== ruleId));
-    };
-
-    const addWatchVariable = (variable) => {
-        setWatchVariables(prev => [...prev, variable]);
-    };
-
-    const removeWatchVariable = (variable) => {
-        setWatchVariables(prev => prev.filter(v => v !== variable));
-    };
-
-    const addLog = (message, type = 'info') => {
-        setLogs(prev => [...prev, {
-            id: Date.now(),
-            message,
-            type,
-            timestamp: new Date().toISOString()
-        }]);
-    };
-
-    const clearLogs = () => {
-        setLogs([]);
-    };
-
-    const stepForward = () => {
-        setCurrentStep(prev => prev + 1);
-        // Simulate rule execution
-        addLog('Executing step ' + (currentStep + 1));
-    };
-
-    const stepBack = () => {
-        if (currentStep > 0) {
-            setCurrentStep(prev => prev - 1);
-            addLog('Stepping back to step ' + (currentStep - 1));
+    useEffect(() => {
+        if (isRunning && !stepMode) {
+            const interval = setInterval(step, 1000);
+            return () => clearInterval(interval);
         }
+    }, [isRunning, stepMode]);
+
+    const step = () => {
+        setCurrentStep(prev => prev + 1);
+        project.characters.forEach((char, charId) => {
+            const rules = project.rules.get(charId) || [];
+            rules.forEach((rule, ruleIndex) => {
+                if (breakpoints.has(`${charId}-${ruleIndex}`)) {
+                    setIsRunning(false);
+                    addLog('breakpoint', `Hit breakpoint at rule ${ruleIndex + 1} for character ${charId}`);
+                    return;
+                }
+
+                const executed = evaluateRule(char, rule);
+                if (executed) {
+                    updateRuleExecution(charId, ruleIndex);
+                }
+            });
+        });
+    };
+
+    const evaluateRule = (character, rule) => {
+        try {
+            // Rule evaluation logic here
+            const result = true; // Placeholder
+            addLog('info', `Rule evaluated for character ${character.id}`);
+            return result;
+        } catch (error) {
+            addLog('error', `Error evaluating rule: ${error.message}`);
+            return false;
+        }
+    };
+
+    const updateRuleExecution = (charId, ruleIndex) => {
+        setRuleExecutions(prev => {
+            const key = `${charId}-${ruleIndex}`;
+            const count = (prev.get(key) || 0) + 1;
+            const newMap = new Map(prev);
+            newMap.set(key, count);
+            return newMap;
+        });
+    };
+
+    const addLog = (type, message) => {
+        setLogs(prev => [{
+            type,
+            message,
+            timestamp: new Date().toISOString(),
+            step: currentStep
+        }, ...prev]);
+    };
+
+    const toggleBreakpoint = (charId, ruleIndex) => {
+        const key = `${charId}-${ruleIndex}`;
+        setBreakpoints(prev => {
+            const next = new Set(prev);
+            if (next.has(key)) {
+                next.delete(key);
+            } else {
+                next.add(key);
+            }
+            return next;
+        });
+    };
+
+    const toggleWatchVariable = (variable) => {
+        setWatchedVariables(prev => {
+            const next = new Set(prev);
+            if (next.has(variable)) {
+                next.delete(variable);
+            } else {
+                next.add(variable);
+            }
+            return next;
+        });
     };
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg w-[1000px] max-w-full mx-4 h-[90vh] flex flex-col">
+            <div className="bg-white rounded-lg shadow-xl w-[1000px] max-w-full h-[80vh] flex flex-col">
                 {/* Header */}
                 <div className="p-4 border-b flex justify-between items-center">
                     <h2 className="text-xl font-bold">Project Debugger</h2>

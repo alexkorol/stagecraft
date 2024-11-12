@@ -1,199 +1,212 @@
-const Help = ({ onClose }) => {
-    const [activeSection, setActiveSection] = React.useState('getting-started');
-    const [searchQuery, setSearchQuery] = React.useState('');
+import React, { useState } from 'react';
+import { HelpCircle, Keyboard, Book, ExternalLink, MessageCircle, Video, Star } from 'lucide-react';
+import { KEY_BINDINGS } from '../constants';
+import { formatKeyBinding } from '../utils/KeyboardControls';
 
-    const sections = {
-        'getting-started': {
-            title: 'Getting Started',
-            content: [
-                {
-                    title: 'Welcome to StageCraft',
-                    text: 'StageCraft is a visual programming environment that lets you create games and simulations by demonstrating what you want characters to do.',
-                },
-                {
-                    title: 'Basic Concepts',
-                    text: 'Characters are the building blocks of your project. Each character can have rules that determine how it behaves during simulation.',
-                },
-                {
-                    title: 'Creating Your First Project',
-                    text: '1. Create a character using the sprite editor\n2. Place your character on the grid\n3. Add rules to define its behavior\n4. Run the simulation to see it in action!',
-                }
-            ]
-        },
-        'characters': {
-            title: 'Characters',
-            content: [
-                {
-                    title: 'Creating Characters',
-                    text: 'Click the "Add Character" button to open the sprite editor. Use the tools to draw your character\'s appearance.',
-                },
-                {
-                    title: 'Editing Characters',
-                    text: 'Select a character from the palette and click the edit button to modify its sprite or properties.',
-                },
-                {
-                    title: 'Character Properties',
-                    text: 'Characters can have properties like position, direction, and custom variables that affect their behavior.',
-                }
-            ]
-        },
-        'rules': {
-            title: 'Rules',
-            content: [
-                {
-                    title: 'Creating Rules',
-                    text: 'Select a character and click "Add Rule". Rules consist of conditions (when) and actions (then).',
-                },
-                {
-                    title: 'Rule Types',
-                    text: '- Movement Rules: Make characters move in different directions\n- Interaction Rules: Define how characters interact\n- State Rules: Change character properties',
-                },
-                {
-                    title: 'Rule Priority',
-                    text: 'Rules are checked in order. Only the first matching rule is executed.',
-                }
-            ]
-        },
-        'simulation': {
-            title: 'Simulation',
-            content: [
-                {
-                    title: 'Running Simulations',
-                    text: 'Click the Play button to start the simulation. Characters will follow their rules automatically.',
-                },
-                {
-                    title: 'Simulation Speed',
-                    text: 'Adjust the simulation speed in settings to make characters move faster or slower.',
-                },
-                {
-                    title: 'Debugging',
-                    text: 'Use the step-by-step mode to see exactly how rules are being applied.',
-                }
-            ]
-        },
-        'advanced': {
-            title: 'Advanced Features',
-            content: [
-                {
-                    title: 'Custom Events',
-                    text: 'Create complex interactions using custom events that characters can trigger and respond to.',
-                },
-                {
-                    title: 'Variables',
-                    text: 'Use variables to track scores, states, or other changing values in your project.',
-                },
-                {
-                    title: 'Multiple Scenes',
-                    text: 'Create different scenes or levels that characters can move between.',
-                }
-            ]
-        }
-    };
+const QUICK_TIPS = [
+    {
+        title: 'Creating Characters',
+        tips: [
+            'Click "Add Character" to create a new character',
+            'Use the sprite editor to design your character',
+            'Click on the grid to place your character'
+        ]
+    },
+    {
+        title: 'Creating Rules',
+        tips: [
+            'Select a character to create rules for it',
+            'Click "Add Rule" to create a new rule',
+            'Rules are checked in order from top to bottom',
+            'Use the "before" and "after" states to define behavior'
+        ]
+    },
+    {
+        title: 'Running Simulation',
+        tips: [
+            'Click Play to start the simulation',
+            'Use the speed control to adjust simulation speed',
+            'Press Space to pause/resume',
+            'Press R to reset to initial state'
+        ]
+    }
+];
 
-    const filteredSections = React.useMemo(() => {
-        if (!searchQuery) return sections;
+const RESOURCES = [
+    {
+        title: 'Documentation',
+        icon: Book,
+        description: 'Complete documentation and guides',
+        link: '/docs'
+    },
+    {
+        title: 'Video Tutorials',
+        icon: Video,
+        description: 'Step-by-step video tutorials',
+        link: '/tutorials'
+    },
+    {
+        title: 'Community Forum',
+        icon: MessageCircle,
+        description: 'Get help from the community',
+        link: '/forum'
+    },
+    {
+        title: 'Example Projects',
+        icon: Star,
+        description: 'Learn from example projects',
+        link: '/examples'
+    }
+];
 
-        const filtered = {};
-        Object.entries(sections).forEach(([key, section]) => {
-            const matchingContent = section.content.filter(item =>
-                item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                item.text.toLowerCase().includes(searchQuery.toLowerCase())
-            );
+const Help = ({ onClose, onOpenDocs }) => {
+    const [activeTab, setActiveTab] = useState('quickTips');
 
-            if (matchingContent.length > 0) {
-                filtered[key] = {
-                    ...section,
-                    content: matchingContent
-                };
-            }
-        });
+    const renderQuickTips = () => (
+        <div className="space-y-6">
+            {QUICK_TIPS.map((section, index) => (
+                <div key={index}>
+                    <h3 className="font-medium mb-2">{section.title}</h3>
+                    <ul className="space-y-2">
+                        {section.tips.map((tip, i) => (
+                            <li key={i} className="flex items-start gap-2">
+                                <span className="text-blue-500">•</span>
+                                <span className="text-gray-600">{tip}</span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            ))}
+        </div>
+    );
 
-        return filtered;
-    }, [searchQuery]);
+    const renderKeyboardShortcuts = () => (
+        <div className="space-y-4">
+            {Object.entries(KEY_BINDINGS).map(([action, shortcut]) => (
+                <div key={action} className="flex items-center justify-between">
+                    <span className="text-gray-600">
+                        {action.split('_').map(word => 
+                            word.charAt(0) + word.slice(1).toLowerCase()
+                        ).join(' ')}
+                    </span>
+                    <kbd className="px-2 py-1 bg-gray-100 border rounded text-sm">
+                        {formatKeyBinding(shortcut)}
+                    </kbd>
+                </div>
+            ))}
+        </div>
+    );
+
+    const renderResources = () => (
+        <div className="grid grid-cols-1 gap-4">
+            {RESOURCES.map((resource, index) => {
+                const Icon = resource.icon;
+                return (
+                    <a
+                        key={index}
+                        href={resource.link}
+                        className="flex items-center gap-4 p-4 rounded-lg border hover:bg-gray-50"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        <div className="p-2 bg-blue-50 rounded-lg">
+                            <Icon className="w-6 h-6 text-blue-500" />
+                        </div>
+                        <div className="flex-1">
+                            <h3 className="font-medium">{resource.title}</h3>
+                            <p className="text-sm text-gray-600">
+                                {resource.description}
+                            </p>
+                        </div>
+                        <ExternalLink className="w-4 h-4 text-gray-400" />
+                    </a>
+                );
+            })}
+        </div>
+    );
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg w-full max-w-4xl mx-4 h-[80vh] flex flex-col">
-                <div className="p-6 border-b">
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-2xl font-bold">Help & Documentation</h2>
+            <div className="bg-white rounded-lg shadow-xl w-[600px] max-w-full">
+                <div className="p-6">
+                    <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-2">
+                            <HelpCircle className="w-5 h-5" />
+                            <h2 className="text-xl font-semibold">Help & Resources</h2>
+                        </div>
                         <button
                             onClick={onClose}
-                            className="text-gray-500 hover:text-gray-700"
+                            className="text-gray-400 hover:text-gray-500"
                         >
-                            <svg
-                                className="w-6 h-6"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M6 18L18 6M6 6l12 12"
-                                />
-                            </svg>
+                            ×
                         </button>
                     </div>
-                    <input
-                        type="text"
-                        placeholder="Search documentation..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full p-2 border rounded"
-                    />
-                </div>
 
-                <div className="flex-1 overflow-hidden flex">
-                    {/* Navigation */}
-                    <div className="w-64 border-r overflow-y-auto p-4">
-                        {Object.entries(filteredSections).map(([key, section]) => (
-                            <button
-                                key={key}
-                                className={`w-full text-left px-4 py-2 rounded ${
-                                    activeSection === key
-                                        ? 'bg-blue-500 text-white'
-                                        : 'hover:bg-gray-100'
-                                }`}
-                                onClick={() => setActiveSection(key)}
-                            >
-                                {section.title}
-                            </button>
-                        ))}
+                    {/* Tabs */}
+                    <div className="flex gap-4 mb-6">
+                        <button
+                            onClick={() => setActiveTab('quickTips')}
+                            className={`
+                                px-4 py-2 rounded-lg flex items-center gap-2
+                                ${activeTab === 'quickTips'
+                                    ? 'bg-blue-50 text-blue-600'
+                                    : 'text-gray-600 hover:bg-gray-50'
+                                }
+                            `}
+                        >
+                            <HelpCircle className="w-4 h-4" />
+                            Quick Tips
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('shortcuts')}
+                            className={`
+                                px-4 py-2 rounded-lg flex items-center gap-2
+                                ${activeTab === 'shortcuts'
+                                    ? 'bg-blue-50 text-blue-600'
+                                    : 'text-gray-600 hover:bg-gray-50'
+                                }
+                            `}
+                        >
+                            <Keyboard className="w-4 h-4" />
+                            Shortcuts
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('resources')}
+                            className={`
+                                px-4 py-2 rounded-lg flex items-center gap-2
+                                ${activeTab === 'resources'
+                                    ? 'bg-blue-50 text-blue-600'
+                                    : 'text-gray-600 hover:bg-gray-50'
+                                }
+                            `}
+                        >
+                            <Book className="w-4 h-4" />
+                            Resources
+                        </button>
                     </div>
 
-                    {/* Content */}
-                    <div className="flex-1 overflow-y-auto p-6">
-                        {filteredSections[activeSection]?.content.map((item, index) => (
-                            <div key={index} className="mb-6">
-                                <h3 className="text-lg font-bold mb-2">{item.title}</h3>
-                                <p className="text-gray-600 whitespace-pre-line">{item.text}</p>
-                            </div>
-                        ))}
+                    {/* Tab Content */}
+                    <div className="mb-6">
+                        {activeTab === 'quickTips' && renderQuickTips()}
+                        {activeTab === 'shortcuts' && renderKeyboardShortcuts()}
+                        {activeTab === 'resources' && renderResources()}
                     </div>
-                </div>
 
-                {/* Footer */}
-                <div className="p-4 border-t">
-                    <div className="flex justify-between items-center">
-                        <div className="text-sm text-gray-500">
-                            Press '?' anywhere to open help
-                        </div>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => window.open('https://github.com/alexuser/stagecraft', '_blank')}
-                                className="px-4 py-2 text-gray-600 hover:text-gray-800"
-                            >
-                                GitHub
-                            </button>
-                            <button
-                                onClick={() => window.open('https://github.com/alexuser/stagecraft/issues', '_blank')}
-                                className="px-4 py-2 text-gray-600 hover:text-gray-800"
-                            >
-                                Report Issue
-                            </button>
-                        </div>
+                    {/* Footer */}
+                    <div className="flex justify-between items-center pt-4 border-t">
+                        <button
+                            onClick={onOpenDocs}
+                            className="text-blue-500 hover:text-blue-600 flex items-center gap-1"
+                        >
+                            <Book className="w-4 h-4" />
+                            Open Documentation
+                        </button>
+                        <button
+                            onClick={onClose}
+                            className="px-4 py-2 bg-gray-100 rounded hover:bg-gray-200"
+                        >
+                            Close
+                        </button>
                     </div>
                 </div>
             </div>

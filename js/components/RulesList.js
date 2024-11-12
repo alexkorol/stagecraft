@@ -1,130 +1,178 @@
-const RulesList = ({ rules, characters, selectedCharacterId, onDeleteRule, onEditRule }) => {
-    const formatCondition = (condition) => {
-        switch (condition.type) {
-            case 'empty_cell':
-                return `Empty cell ${condition.direction}`;
-            case 'has_character':
-                return `Character ${condition.direction}`;
-            case 'key_pressed':
-                return `Key: ${condition.key}`;
-            case 'timer':
-                return `Every ${condition.interval} seconds`;
+import React from 'react';
+import { Plus, Trash2, Edit, ArrowRight } from 'lucide-react';
+import { TRIGGERS } from '../constants';
+
+const RulesList = ({ 
+    character,
+    rules,
+    onAddRule,
+    onEditRule,
+    onDeleteRule,
+    onMoveRule
+}) => {
+    const renderRulePreview = (rule) => {
+        const gridSize = 3;
+        const renderGrid = (grid) => (
+            <div 
+                className="grid gap-px bg-gray-100 p-1"
+                style={{
+                    gridTemplateColumns: `repeat(${gridSize}, 16px)`
+                }}
+            >
+                {grid.map((row, y) =>
+                    row.map((cell, x) => (
+                        <div
+                            key={`${x}-${y}`}
+                            className={`w-4 h-4 ${
+                                x === 1 && y === 1 ? 'bg-blue-100' : 'bg-white'
+                            }`}
+                        >
+                            {cell && (
+                                <div 
+                                    className="w-full h-full"
+                                    style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: `repeat(${cell.size}, 1fr)`
+                                    }}
+                                >
+                                    {cell.pixels.map((prow, py) =>
+                                        prow.map((color, px) => (
+                                            <div
+                                                key={`${px}-${py}`}
+                                                style={{ backgroundColor: color }}
+                                            />
+                                        ))
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    ))
+                )}
+            </div>
+        );
+
+        return (
+            <div className="flex items-center gap-2">
+                {renderGrid(rule.before)}
+                <ArrowRight className="w-4 h-4 text-gray-400" />
+                {renderGrid(rule.after)}
+            </div>
+        );
+    };
+
+    const getTriggerLabel = (rule) => {
+        switch (rule.trigger) {
+            case TRIGGERS.KEY_PRESS:
+                return `When '${rule.triggerKey}' pressed`;
+            case TRIGGERS.COLLISION:
+                return 'On collision';
+            case TRIGGERS.PROXIMITY:
+                return `Within ${rule.proximity} cells`;
+            case TRIGGERS.TIMER:
+                return 'Every tick';
+            case TRIGGERS.CLICK:
+                return 'When clicked';
             default:
-                return JSON.stringify(condition);
+                return 'Always';
         }
     };
 
-    const formatAction = (rule) => {
-        switch (rule.type) {
-            case 'move':
-                return `Move ${rule.direction}`;
-            case 'jump':
-                return `Jump ${rule.direction}`;
-            case 'turn':
-                return `Turn ${rule.direction}`;
-            case 'change_sprite':
-                return 'Change appearance';
-            case 'disappear':
-                return 'Disappear';
-            case 'appear':
-                return 'Appear';
-            default:
-                return rule.type;
+    const handleDragStart = (e, index) => {
+        e.dataTransfer.setData('ruleIndex', index.toString());
+    };
+
+    const handleDragOver = (e, index) => {
+        e.preventDefault();
+        const draggingIndex = parseInt(e.dataTransfer.getData('ruleIndex'));
+        if (draggingIndex !== index) {
+            const element = e.currentTarget;
+            const rect = element.getBoundingClientRect();
+            const midY = rect.top + rect.height / 2;
+            
+            element.classList.remove('border-t-2', 'border-b-2');
+            if (e.clientY < midY) {
+                element.classList.add('border-t-2');
+            } else {
+                element.classList.add('border-b-2');
+            }
         }
     };
 
-    const filteredRules = selectedCharacterId
-        ? rules.filter(rule => rule.characterId === selectedCharacterId)
-        : rules;
+    const handleDragLeave = (e) => {
+        e.currentTarget.classList.remove('border-t-2', 'border-b-2');
+    };
 
-    const getCharacterName = (characterId) => {
-        const character = characters.find(c => c.id === characterId);
-        return character ? `Character ${character.id}` : 'Unknown';
+    const handleDrop = (e, targetIndex) => {
+        e.preventDefault();
+        const sourceIndex = parseInt(e.dataTransfer.getData('ruleIndex'));
+        if (sourceIndex !== targetIndex) {
+            onMoveRule(sourceIndex, targetIndex);
+        }
+        e.currentTarget.classList.remove('border-t-2', 'border-b-2');
     };
 
     return (
-        <div className="space-y-2">
-            {filteredRules.length === 0 ? (
-                <div className="text-center py-4 text-gray-500 text-sm">
-                    {selectedCharacterId
-                        ? "No rules yet. Click 'Add Rule' to create one!"
-                        : 'No rules created yet.'}
+        <div className="w-64 bg-white p-4 border rounded-lg">
+            <div className="flex justify-between items-center mb-4">
+                <h3 className="font-medium">Rules</h3>
+                {character && (
+                    <button
+                        onClick={onAddRule}
+                        className="p-1 rounded hover:bg-gray-100"
+                        title="Add New Rule"
+                    >
+                        <Plus className="w-4 h-4" />
+                    </button>
+                )}
+            </div>
+
+            {!character ? (
+                <div className="text-gray-500 text-sm text-center p-4">
+                    Select a character to view and edit its rules
                 </div>
             ) : (
-                filteredRules.map(rule => (
-                    <div
-                        key={rule.id}
-                        className="p-3 border rounded bg-white hover:bg-gray-50"
-                    >
-                        {/* Rule Header */}
-                        <div className="flex items-center justify-between mb-2">
-                            <div className="font-medium text-sm">
-                                {!selectedCharacterId && (
-                                    <span className="text-gray-500 mr-2">
-                                        {getCharacterName(rule.characterId)}:
-                                    </span>
-                                )}
-                                {formatAction(rule)}
-                            </div>
-                            <div className="flex gap-1">
-                                {onEditRule && (
+                <div className="space-y-2">
+                    {rules.map((rule, index) => (
+                        <div
+                            key={rule.id}
+                            className="p-2 border rounded hover:bg-gray-50"
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, index)}
+                            onDragOver={(e) => handleDragOver(e, index)}
+                            onDragLeave={handleDragLeave}
+                            onDrop={(e) => handleDrop(e, index)}
+                        >
+                            <div className="flex justify-between items-start mb-2">
+                                <span className="text-sm font-medium">
+                                    {getTriggerLabel(rule)}
+                                </span>
+                                <div className="flex gap-1">
                                     <button
                                         onClick={() => onEditRule(rule)}
-                                        className="p-1 text-gray-400 hover:text-blue-500"
+                                        className="p-1 rounded hover:bg-gray-200"
+                                        title="Edit Rule"
                                     >
-                                        <svg
-                                            className="w-4 h-4"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            viewBox="0 0 24 24"
-                                        >
-                                            <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                strokeWidth={2}
-                                                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                                            />
-                                        </svg>
+                                        <Edit className="w-4 h-4" />
                                     </button>
-                                )}
-                                {onDeleteRule && (
                                     <button
                                         onClick={() => onDeleteRule(rule.id)}
-                                        className="p-1 text-gray-400 hover:text-red-500"
+                                        className="p-1 rounded hover:bg-red-100 text-red-600"
+                                        title="Delete Rule"
                                     >
-                                        <svg
-                                            className="w-4 h-4"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            viewBox="0 0 24 24"
-                                        >
-                                            <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                strokeWidth={2}
-                                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                            />
-                                        </svg>
+                                        <Trash2 className="w-4 h-4" />
                                     </button>
-                                )}
+                                </div>
                             </div>
+                            {renderRulePreview(rule)}
                         </div>
+                    ))}
 
-                        {/* Conditions */}
-                        {rule.conditions && rule.conditions.length > 0 && (
-                            <div className="text-sm text-gray-600">
-                                <div className="font-medium mb-1">When:</div>
-                                <ul className="list-disc list-inside space-y-1">
-                                    {rule.conditions.map((condition, index) => (
-                                        <li key={index}>
-                                            {formatCondition(condition)}
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
-                    </div>
-                ))
+                    {rules.length === 0 && (
+                        <div className="text-gray-500 text-sm text-center p-4">
+                            No rules yet. Click the + button to add one.
+                        </div>
+                    )}
+                </div>
             )}
         </div>
     );

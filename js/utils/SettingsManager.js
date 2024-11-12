@@ -1,227 +1,204 @@
+import { LOCAL_STORAGE_KEYS, GRID_SIZES } from '../constants';
+import StorageManager from './storage';
+import EventManager from './EventManager';
+
 class SettingsManager {
     constructor() {
-        this.settings = {
-            // Display settings
-            gridSize: 8,
-            cellSize: 50,
-            showGrid: true,
-            theme: 'light',
-            pixelSize: 8,
-            
-            // Audio settings
-            masterVolume: 1.0,
-            musicVolume: 0.7,
-            soundVolume: 1.0,
-            muteAudio: false,
-            
-            // Game settings
-            simulationSpeed: 1000,
-            autoSave: true,
-            autoSaveInterval: 300000, // 5 minutes
-            maxUndoSteps: 50,
-            showTutorial: true,
-            
-            // Editor settings
-            snapToGrid: true,
-            showRulePreview: true,
-            defaultCharacterColor: '#000000',
-            showCoordinates: false,
-            
-            // Performance settings
-            maxCharacters: 100,
-            maxRulesPerCharacter: 20,
-            enableAnimations: true,
-            
-            // Accessibility settings
-            highContrast: false,
-            largeText: false,
-            reducedMotion: false
-        };
-
-        this.callbacks = new Map();
+        this.settings = this.getDefaultSettings();
+        this.listeners = new Set();
         this.loadSettings();
     }
 
-    // Load settings from localStorage
-    loadSettings() {
+    getDefaultSettings() {
+        return {
+            // Grid settings
+            gridSize: GRID_SIZES.SMALL,
+            showGrid: true,
+            showCoordinates: false,
+            cellSize: 50,
+
+            // Audio settings
+            musicVolume: 0.5,
+            soundVolume: 0.7,
+            isMuted: false,
+
+            // Performance settings
+            performanceMode: false,
+            maxFPS: 60,
+            enableAnimations: true,
+
+            // Editor settings
+            autoSave: true,
+            autoSaveInterval: 5 * 60 * 1000, // 5 minutes
+            showRulePreview: true,
+            snapToGrid: true,
+
+            // Interface settings
+            theme: 'light',
+            language: 'en',
+            keyboardShortcuts: true,
+            showTutorialTips: true,
+            interfaceScale: 1,
+
+            // Debug settings
+            showDebugInfo: false,
+            enableLogging: false,
+            showPerformanceStats: false,
+
+            // Project settings
+            defaultProjectName: 'Untitled Project',
+            maxUndoSteps: 50,
+            maxRecentProjects: 10
+        };
+    }
+
+    async loadSettings() {
         try {
-            const savedSettings = localStorage.getItem('stagecraft_settings');
+            const savedSettings = await StorageManager.load(LOCAL_STORAGE_KEYS.SETTINGS);
             if (savedSettings) {
                 this.settings = {
-                    ...this.settings,
-                    ...JSON.parse(savedSettings)
+                    ...this.getDefaultSettings(),
+                    ...savedSettings
                 };
+                this.notifyListeners();
             }
         } catch (error) {
             console.error('Failed to load settings:', error);
         }
     }
 
-    // Save settings to localStorage
-    saveSettings() {
+    async saveSettings() {
         try {
-            localStorage.setItem('stagecraft_settings', JSON.stringify(this.settings));
+            await StorageManager.save(LOCAL_STORAGE_KEYS.SETTINGS, this.settings);
+            this.notifyListeners();
+            return true;
         } catch (error) {
             console.error('Failed to save settings:', error);
+            return false;
         }
     }
 
-    // Get a setting value
-    get(key) {
-        return this.settings[key];
-    }
-
-    // Update a setting value
-    set(key, value) {
-        const oldValue = this.settings[key];
-        if (oldValue === value) return;
+    // Update a single setting
+    async updateSetting(key, value) {
+        if (!(key in this.settings)) {
+            console.warn(`Unknown setting: ${key}`);
+            return false;
+        }
 
         this.settings[key] = value;
-        this.saveSettings();
+        await this.saveSettings();
         
-        // Notify callbacks
-        if (this.callbacks.has(key)) {
-            this.callbacks.get(key).forEach(callback => {
-                try {
-                    callback(value, oldValue);
-                } catch (error) {
-                    console.error(`Error in settings callback for ${key}:`, error);
-                }
-            });
-        }
+        // Emit specific event for this setting change
+        EventManager.emit(`setting:${key}`, value);
+        
+        return true;
     }
 
     // Update multiple settings at once
-    updateSettings(updates) {
-        const changes = new Map();
-        
-        Object.entries(updates).forEach(([key, value]) => {
-            const oldValue = this.settings[key];
-            if (oldValue !== value) {
-                this.settings[key] = value;
-                changes.set(key, { oldValue, newValue: value });
-            }
-        });
+    async updateSettings(newSettings) {
+        Object.assign(this.settings, newSettings);
+        return await this.saveSettings();
+    }
 
-        if (changes.size > 0) {
-            this.saveSettings();
-            
-            // Notify callbacks
-            changes.forEach((change, key) => {
-                if (this.callbacks.has(key)) {
-                    this.callbacks.get(key).forEach(callback => {
-                        try {
-                            callback(change.newValue, change.oldValue);
-                        } catch (error) {
-                            console.error(`Error in settings callback for ${key}:`, error);
-                        }
-                    });
-                }
-            });
+    // Get a single setting
+    getSetting(key) {
+        return this.settings[key];
+    }
+
+    // Get all settings
+    getAllSettings() {
+        return { ...this.settings };
+    }
+
+    // Reset all settings to defaults
+    async resetSettings() {
+        this.settings = this.getDefaultSettings();
+        return await this.saveSettings();
+    }
+
+    // Reset a specific setting to its default value
+    async resetSetting(key) {
+        if (!(key in this.settings)) {
+            console.warn(`Unknown setting: ${key}`);
+            return false;
         }
+
+        this.settings[key] = this.getDefaultSettings()[key];
+        return await this.saveSettings();
     }
 
-    // Reset settings to defaults
-    resetToDefaults() {
-        const oldSettings = { ...this.settings };
-        this.settings = new SettingsManager().settings;
-        this.saveSettings();
-        
-        // Notify callbacks for all changed settings
-        Object.entries(this.settings).forEach(([key, value]) => {
-            if (oldSettings[key] !== value && this.callbacks.has(key)) {
-                this.callbacks.get(key).forEach(callback => {
-                    try {
-                        callback(value, oldSettings[key]);
-                    } catch (error) {
-                        console.error(`Error in settings callback for ${key}:`, error);
-                    }
-                });
-            }
-        });
+    // Subscribe to settings changes
+    subscribe(callback) {
+        this.listeners.add(callback);
+        return () => this.listeners.delete(callback);
     }
 
-    // Subscribe to setting changes
-    subscribe(key, callback) {
-        if (!this.callbacks.has(key)) {
-            this.callbacks.set(key, new Set());
-        }
-        this.callbacks.get(key).add(callback);
-
-        // Return unsubscribe function
-        return () => {
-            const callbacks = this.callbacks.get(key);
-            if (callbacks) {
-                callbacks.delete(callback);
-                if (callbacks.size === 0) {
-                    this.callbacks.delete(key);
-                }
-            }
-        };
+    // Notify all listeners of settings changes
+    notifyListeners() {
+        this.listeners.forEach(callback => callback(this.settings));
     }
 
-    // Export settings to file
+    // Export settings to JSON
     exportSettings() {
-        const blob = new Blob([JSON.stringify(this.settings, null, 2)], {
-            type: 'application/json'
-        });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'stagecraft_settings.json';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        return JSON.stringify(this.settings, null, 2);
     }
 
-    // Import settings from file
-    async importSettings(file) {
+    // Import settings from JSON
+    async importSettings(json) {
         try {
-            const text = await file.text();
-            const newSettings = JSON.parse(text);
-            this.updateSettings(newSettings);
-            return true;
+            const newSettings = JSON.parse(json);
+            this.settings = {
+                ...this.getDefaultSettings(),
+                ...newSettings
+            };
+            return await this.saveSettings();
         } catch (error) {
             console.error('Failed to import settings:', error);
             return false;
         }
     }
+
+    // Validate a setting value
+    validateSetting(key, value) {
+        switch (key) {
+            case 'gridSize':
+                return Object.values(GRID_SIZES).some(size => 
+                    size.width === value.width && size.height === value.height
+                );
+            case 'musicVolume':
+            case 'soundVolume':
+            case 'interfaceScale':
+                return typeof value === 'number' && value >= 0 && value <= 1;
+            case 'maxFPS':
+                return typeof value === 'number' && value >= 30 && value <= 144;
+            case 'autoSaveInterval':
+                return typeof value === 'number' && value >= 60000; // minimum 1 minute
+            case 'theme':
+                return ['light', 'dark', 'system'].includes(value);
+            case 'language':
+                return typeof value === 'string' && value.length === 2;
+            default:
+                return true;
+        }
+    }
+
+    // Get settings schema (for validation and UI generation)
+    getSettingsSchema() {
+        return {
+            gridSize: {
+                type: 'select',
+                options: Object.values(GRID_SIZES),
+                label: 'Grid Size',
+                category: 'grid'
+            },
+            showGrid: {
+                type: 'boolean',
+                label: 'Show Grid Lines',
+                category: 'grid'
+            },
+            // ... define schema for all settings
+        };
+    }
 }
 
-// React hook for using SettingsManager
-const useSettings = () => {
-    const [settingsManager] = React.useState(() => new SettingsManager());
-    const [settings, setSettings] = React.useState(settingsManager.settings);
-
-    React.useEffect(() => {
-        const unsubscribers = Object.keys(settingsManager.settings).map(key => 
-            settingsManager.subscribe(key, () => {
-                setSettings({ ...settingsManager.settings });
-            })
-        );
-
-        return () => {
-            unsubscribers.forEach(unsubscribe => unsubscribe());
-        };
-    }, [settingsManager]);
-
-    const updateSetting = React.useCallback((key, value) => {
-        settingsManager.set(key, value);
-    }, [settingsManager]);
-
-    const updateSettings = React.useCallback((updates) => {
-        settingsManager.updateSettings(updates);
-    }, [settingsManager]);
-
-    return {
-        settings,
-        updateSetting,
-        updateSettings,
-        resetToDefaults: settingsManager.resetToDefaults.bind(settingsManager),
-        exportSettings: settingsManager.exportSettings.bind(settingsManager),
-        importSettings: settingsManager.importSettings.bind(settingsManager)
-    };
-};
-
-export { SettingsManager, useSettings };
+export default new SettingsManager();

@@ -4,72 +4,335 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StageCraft Creator</title>
-    
-    <!-- Tailwind CSS via CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/styles.css">
-    
-    <!-- React via CDN -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    
-    <!-- Babel for JSX -->
     <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
 
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-
     <style>
-        /* Immediate styles while CSS loads */
         .grid-cell {
             width: 50px;
             height: 50px;
             border: 1px solid #e5e7eb;
-            transition: background-color 0.2s;
         }
-        
         .sprite-pixel {
             width: 100%;
             height: 100%;
         }
-        
-        .color-picker-cell {
-            width: 32px;
-            height: 32px;
-            cursor: pointer;
-            border: 2px solid transparent;
-        }
-        
-        .color-picker-cell.selected {
-            border-color: #3b82f6;
-        }
     </style>
 </head>
-<body class="bg-gray-100">
+<body>
     <div id="root"></div>
 
-    <!-- Main App Component -->
-    <script type="text/babel" src="js/components/App.js"></script>
-    
-    <!-- Components -->
-    <script type="text/babel" src="js/components/Grid.js"></script>
-    <script type="text/babel" src="js/components/SpriteEditor.js"></script>
-    <script type="text/babel" src="js/components/RuleEditor.js"></script>
-    <script type="text/babel" src="js/components/CharacterPalette.js"></script>
-    <script type="text/babel" src="js/components/Controls.js"></script>
-    
-    <!-- Utils -->
-    <script type="text/babel" src="js/utils/constants.js"></script>
-    <script type="text/babel" src="js/utils/storage.js"></script>
-    
-    <!-- Initialize App -->
     <script type="text/babel">
+        const App = () => {
+            const [characters, setCharacters] = React.useState([]);
+            const [selectedCharacter, setSelectedCharacter] = React.useState(null);
+            const [isRunning, setIsRunning] = React.useState(false);
+            const [intervalId, setIntervalId] = React.useState(null);
+            const [speed, setSpeed] = React.useState(1000);
+            const [selectedColor, setSelectedColor] = React.useState('#000000');
+            const [statusMessage, setStatusMessage] = React.useState('Click "Add Character" to begin');
+            const gridSize = 8;
+
+            const handleAddCharacter = () => {
+                const newCharacter = {
+                    id: Date.now(),
+                    sprite: Array(8).fill().map(() => Array(8).fill(selectedColor)),
+                    x: -1,
+                    y: -1,
+                    direction: 'right'
+                };
+                setCharacters([...characters, newCharacter]);
+                setSelectedCharacter(newCharacter);
+                setStatusMessage('Click on the grid to place your character');
+            };
+
+            const handleDeleteCharacter = (id) => {
+                setCharacters(chars => chars.filter(char => char.id !== id));
+                if (selectedCharacter && selectedCharacter.id === id) {
+                    setSelectedCharacter(null);
+                }
+            };
+
+            const handleCellClick = (x, y) => {
+                if (!selectedCharacter || isRunning) return;
+                setCharacters(chars => chars.map(char => 
+                    char.id === selectedCharacter.id ? {...char, x, y} : char
+                ));
+                setStatusMessage('Set character direction, then press Start to run simulation');
+            };
+
+            const moveCharacter = (char) => {
+                let newX = char.x;
+                let newY = char.y;
+
+                switch (char.direction) {
+                    case 'right':
+                        newX = Math.min(char.x + 1, gridSize - 1);
+                        break;
+                    case 'left':
+                        newX = Math.max(char.x - 1, 0);
+                        break;
+                    case 'up':
+                        newY = Math.max(char.y - 1, 0);
+                        break;
+                    case 'down':
+                        newY = Math.min(char.y + 1, gridSize - 1);
+                        break;
+                }
+
+                // Check if new position is occupied
+                const isOccupied = characters.some(c => 
+                    c.id !== char.id && c.x === newX && c.y === newY
+                );
+
+                if (!isOccupied) {
+                    return { ...char, x: newX, y: newY };
+                }
+                return char;
+            };
+
+            const handleDirectionChange = (charId, direction) => {
+                if (isRunning) return;
+                setCharacters(chars => chars.map(char => 
+                    char.id === charId ? {...char, direction} : char
+                ));
+            };
+
+            const toggleSimulation = () => {
+                if (isRunning) {
+                    if (intervalId) {
+                        clearInterval(intervalId);
+                        setIntervalId(null);
+                    }
+                    setStatusMessage('Simulation stopped');
+                } else {
+                    const id = setInterval(() => {
+                        setCharacters(chars => chars.map(moveCharacter));
+                    }, speed);
+                    setIntervalId(id);
+                    setStatusMessage('Simulation running...');
+                }
+                setIsRunning(!isRunning);
+            };
+
+            React.useEffect(() => {
+                return () => {
+                    if (intervalId) {
+                        clearInterval(intervalId);
+                    }
+                };
+            }, [intervalId]);
+
+            const Grid = () => {
+                const grid = Array(gridSize).fill().map(() => Array(gridSize).fill(null));
+                characters.forEach(char => {
+                    if (char.x >= 0 && char.x < gridSize && char.y >= 0 && char.y < gridSize) {
+                        grid[char.y][char.x] = char;
+                    }
+                });
+
+                return (
+                    <div>
+                        <div className="grid gap-px bg-gray-200 p-1 w-fit">
+                            {grid.map((row, y) => (
+                                <div key={y} className="flex">
+                                    {row.map((cell, x) => (
+                                        <div
+                                            key={`${x}-${y}`}
+                                            className="grid-cell bg-white hover:bg-gray-50 cursor-pointer"
+                                            onClick={() => handleCellClick(x, y)}
+                                        >
+                                            {cell && (
+                                                <div className="w-full h-full grid grid-cols-8 grid-rows-8">
+                                                    {cell.sprite.map((row, i) =>
+                                                        row.map((color, j) => (
+                                                            <div
+                                                                key={`${i}-${j}`}
+                                                                className="sprite-pixel"
+                                                                style={{ backgroundColor: color }}
+                                                            />
+                                                        ))
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
+                    <div className="mt-4 flex items-center gap-4">
+                        <button
+                            onClick={toggleSimulation}
+                            className={`px-4 py-2 rounded ${
+                                isRunning ? 'bg-red-500' : 'bg-green-500'
+                            } text-white`}
+                        >
+                            {isRunning ? 'Stop' : 'Start'}
+                        </button>
+                        <select
+                            value={speed}
+                            onChange={(e) => {
+                                const newSpeed = Number(e.target.value);
+                                setSpeed(newSpeed);
+                                if (isRunning) {
+                                    clearInterval(intervalId);
+                                    const id = setInterval(() => {
+                                        setCharacters(chars => chars.map(moveCharacter));
+                                    }, newSpeed);
+                                    setIntervalId(id);
+                                }
+                            }}
+                            className="p-2 border rounded"
+                            disabled={isRunning}
+                        >
+                            <option value={2000}>Slow</option>
+                            <option value={1000}>Normal</option>
+                            <option value={500}>Fast</option>
+                            <option value={250}>Very Fast</option>
+                        </select>
+                        {isRunning && (
+                            <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                <span className="text-sm text-gray-600">Simulation running...</span>
+                            </div>
+                        )}
+                    </div>
+                    </div>
+                );
+            };
+
+            const ColorPicker = () => {
+                const colors = [
+                    '#000000', '#FF0000', '#00FF00', '#0000FF',
+                    '#FFFF00', '#FF00FF', '#00FFFF', '#FFA500'
+                ];
+
+                return (
+                    <div className="flex gap-2 mb-4">
+                        {colors.map(color => (
+                            <button
+                                key={color}
+                                className={`w-8 h-8 rounded-full border-2 ${
+                                    selectedColor === color ? 'border-blue-500' : 'border-gray-200'
+                                }`}
+                                style={{ backgroundColor: color }}
+                                onClick={() => setSelectedColor(color)}
+                            />
+                        ))}
+                    </div>
+                );
+            };
+
+            const CharacterPalette = () => (
+                <div className="w-64 bg-white p-4 rounded-lg shadow">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="font-medium">Characters</h3>
+                        <button
+                            onClick={handleAddCharacter}
+                            className="px-2 py-1 text-sm bg-blue-500 text-white rounded"
+                        >
+                            Add Character
+                        </button>
+                    </div>
+                    <ColorPicker />
+                    <div className="space-y-2">
+                        {characters.map(char => (
+                            <div
+                                key={char.id}
+                                className={`p-2 border rounded ${
+                                    selectedCharacter && selectedCharacter.id === char.id ? 'border-blue-500 bg-blue-50' : ''
+                                }`}
+                            >
+                                <div className="flex items-center gap-2 cursor-pointer"
+                                    onClick={() => setSelectedCharacter(char)}>
+                                    <div className="w-8 h-8 border bg-white grid grid-cols-8 grid-rows-8">
+                                        {char.sprite.map((row, i) =>
+                                            row.map((color, j) => (
+                                                <div
+                                                    key={`${i}-${j}`}
+                                                    className="sprite-pixel"
+                                                    style={{ backgroundColor: color }}
+                                                />
+                                            ))
+                                        )}
+                                    </div>
+                                    <span className="flex-1">Character {char.id.toString().slice(-4)}</span>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteCharacter(char.id);
+                                        }}
+                                        className="text-red-500 hover:text-red-700"
+                                    >
+                                        &times;
+                                    </button>
+                                </div>
+                                {/* Direction Controls */}
+                                <div className="grid grid-cols-3 gap-1 mt-2">
+                                    <button
+                                        onClick={() => handleDirectionChange(char.id, 'left')}
+                                        className={`p-1 text-xs ${char.direction === 'left' ? 'bg-blue-500 text-white' : 'bg-gray-100'} rounded`}
+                                    >
+                                        Left
+                                    </button>
+                                    <button
+                                        onClick={() => handleDirectionChange(char.id, 'up')}
+                                        className={`p-1 text-xs ${char.direction === 'up' ? 'bg-blue-500 text-white' : 'bg-gray-100'} rounded`}
+                                    >
+                                        Up
+                                    </button>
+                                    <button
+                                        onClick={() => handleDirectionChange(char.id, 'right')}
+                                        className={`p-1 text-xs ${char.direction === 'right' ? 'bg-blue-500 text-white' : 'bg-gray-100'} rounded`}
+                                    >
+                                        Right
+                                    </button>
+                                    <div></div>
+                                    <button
+                                        onClick={() => handleDirectionChange(char.id, 'down')}
+                                        className={`p-1 text-xs ${char.direction === 'down' ? 'bg-blue-500 text-white' : 'bg-gray-100'} rounded`}
+                                    >
+                                        Down
+                                    </button>
+                                    <div></div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+
+            return (
+                <div className="p-8">
+                    <div className="flex justify-between items-center mb-6">
+                        <h1 className="text-2xl font-bold">StageCraft Creator</h1>
+                        <div className="text-sm text-gray-600 bg-gray-100 px-3 py-2 rounded">
+                            {statusMessage}
+                        </div>
+                    </div>
+                    <div className="flex gap-6">
+                        <Grid />
+                        <div className="space-y-4">
+                            <CharacterPalette />
+                            <div className="bg-white p-4 rounded-lg shadow">
+                                <h3 className="font-medium mb-2">Instructions</h3>
+                                <ol className="text-sm text-gray-600 list-decimal list-inside space-y-1">
+                                    <li>Choose a color and add a character</li>
+                                    <li>Place the character on the grid</li>
+                                    <li>Set character direction</li>
+                                    <li>Press Start to run simulation</li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         ReactDOM.render(
-            <React.StrictMode>
-                <App />
-            </React.StrictMode>,
+            <App />,
             document.getElementById('root')
         );
     </script>

@@ -1,174 +1,183 @@
-const useDragAndDrop = ({ onDrop, onDragStart, onDragEnd, gridSize }) => {
-    const [isDragging, setIsDragging] = React.useState(false);
-    const [draggedItem, setDraggedItem] = React.useState(null);
-    const [dragPosition, setDragPosition] = React.useState({ x: 0, y: 0 });
-    const gridRef = React.useRef(null);
+import { useState, useCallback, useRef } from 'react';
 
-    // Calculate grid cell position from mouse coordinates
-    const getGridPosition = React.useCallback((clientX, clientY) => {
-        if (!gridRef.current) return null;
+export const useDragAndDrop = ({
+    onDragStart,
+    onDragEnd,
+    onDrop,
+    canDrag = () => true,
+    canDrop = () => true
+}) => {
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+    const dragDataRef = useRef(null);
 
-        const rect = gridRef.current.getBoundingClientRect();
-        const x = clientX - rect.left;
-        const y = clientY - rect.top;
+    const handleDragStart = useCallback((e, data) => {
+        if (!canDrag(data)) return;
 
-        const cellSize = rect.width / gridSize;
-        const gridX = Math.floor(x / cellSize);
-        const gridY = Math.floor(y / cellSize);
+        // Store initial mouse position
+        const rect = e.currentTarget.getBoundingClientRect();
+        setDragOffset({
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        });
 
-        if (gridX >= 0 && gridX < gridSize && gridY >= 0 && gridY < gridSize) {
-            return { x: gridX, y: gridY };
-        }
-
-        return null;
-    }, [gridSize]);
-
-    const handleDragStart = React.useCallback((item, event) => {
+        // Store drag data
+        dragDataRef.current = data;
         setIsDragging(true);
-        setDraggedItem(item);
-        setDragPosition({
-            x: event.clientX,
-            y: event.clientY
-        });
-        onDragStart?.(item);
 
-        // Prevent default drag ghost image
-        if (event.dataTransfer) {
-            const emptyImg = document.createElement('img');
-            event.dataTransfer.setDragImage(emptyImg, 0, 0);
-        }
-    }, [onDragStart]);
+        // Call external handler
+        onDragStart?.(data, e);
 
-    const handleDrag = React.useCallback((event) => {
-        if (!isDragging) return;
-
-        setDragPosition({
-            x: event.clientX,
-            y: event.clientY
-        });
-
-        const position = getGridPosition(event.clientX, event.clientY);
-        if (position) {
-            // Update visual feedback
-            const cell = document.elementFromPoint(event.clientX, event.clientY);
-            if (cell?.classList.contains('grid-cell')) {
-                cell.classList.add('drag-over');
-            }
-        }
-    }, [isDragging, getGridPosition]);
-
-    const handleDragEnd = React.useCallback((event) => {
-        if (!isDragging) return;
-
-        const position = getGridPosition(event.clientX, event.clientY);
-        if (position && draggedItem) {
-            onDrop?.(draggedItem, position);
+        // Set drag image if available
+        if (e.dataTransfer && data.dragImage) {
+            const img = new Image();
+            img.src = data.dragImage;
+            e.dataTransfer.setDragImage(img, dragOffset.x, dragOffset.y);
         }
 
-        // Clean up
+        // Set drag data
+        if (e.dataTransfer) {
+            e.dataTransfer.setData('text/plain', JSON.stringify(data));
+            e.dataTransfer.effectAllowed = 'move';
+        }
+    }, [onDragStart, canDrag]);
+
+    const handleDragEnd = useCallback((e) => {
         setIsDragging(false);
-        setDraggedItem(null);
-        onDragEnd?.();
+        onDragEnd?.(dragDataRef.current, e);
+        dragDataRef.current = null;
+    }, [onDragEnd]);
 
-        // Remove visual feedback
-        document.querySelectorAll('.grid-cell').forEach(cell => {
-            cell.classList.remove('drag-over');
-        });
-    }, [isDragging, draggedItem, getGridPosition, onDrop, onDragEnd]);
+    const handleDragOver = useCallback((e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    }, []);
 
-    // Handle touch events for mobile
-    const handleTouchStart = React.useCallback((item, event) => {
-        const touch = event.touches[0];
-        handleDragStart(item, {
-            clientX: touch.clientX,
-            clientY: touch.clientY
-        });
-    }, [handleDragStart]);
+    const handleDrop = useCallback((e, dropZoneData) => {
+        e.preventDefault();
 
-    const handleTouchMove = React.useCallback((event) => {
-        event.preventDefault();
-        const touch = event.touches[0];
-        handleDrag({
-            clientX: touch.clientX,
-            clientY: touch.clientY
-        });
-    }, [handleDrag]);
-
-    const handleTouchEnd = React.useCallback((event) => {
-        const touch = event.changedTouches[0];
-        handleDragEnd({
-            clientX: touch.clientX,
-            clientY: touch.clientY
-        });
-    }, [handleDragEnd]);
-
-    React.useEffect(() => {
-        if (isDragging) {
-            document.addEventListener('mousemove', handleDrag);
-            document.addEventListener('mouseup', handleDragEnd);
-            document.addEventListener('touchmove', handleTouchMove, { passive: false });
-            document.addEventListener('touchend', handleTouchEnd);
+        let dragData;
+        try {
+            // Try to get data from dataTransfer
+            dragData = JSON.parse(e.dataTransfer.getData('text/plain'));
+        } catch {
+            // Fallback to stored data
+            dragData = dragDataRef.current;
         }
 
-        return () => {
-            document.removeEventListener('mousemove', handleDrag);
-            document.removeEventListener('mouseup', handleDragEnd);
-            document.removeEventListener('touchmove', handleTouchMove);
-            document.removeEventListener('touchend', handleTouchEnd);
+        if (!dragData || !canDrop(dragData, dropZoneData)) return;
+
+        // Calculate drop position
+        const rect = e.currentTarget.getBoundingClientRect();
+        const position = {
+            x: e.clientX - rect.left - dragOffset.x,
+            y: e.clientY - rect.top - dragOffset.y
         };
-    }, [isDragging, handleDrag, handleDragEnd, handleTouchMove, handleTouchEnd]);
+
+        onDrop?.(dragData, dropZoneData, position, e);
+        setIsDragging(false);
+        dragDataRef.current = null;
+    }, [onDrop, canDrop]);
+
+    // Hook for making an element draggable
+    const draggableProps = useCallback((data) => ({
+        draggable: true,
+        onDragStart: (e) => handleDragStart(e, data),
+        onDragEnd: handleDragEnd,
+        style: {
+            cursor: canDrag(data) ? 'grab' : 'not-allowed',
+            opacity: isDragging ? 0.5 : 1
+        }
+    }), [handleDragStart, handleDragEnd, canDrag, isDragging]);
+
+    // Hook for making an element a drop zone
+    const dropZoneProps = useCallback((data) => ({
+        onDragOver: handleDragOver,
+        onDrop: (e) => handleDrop(e, data),
+        style: {
+            position: 'relative'
+        }
+    }), [handleDragOver, handleDrop]);
+
+    // Helper for custom drag previews
+    const createDragPreview = useCallback((element) => {
+        const preview = element.cloneNode(true);
+        preview.style.position = 'fixed';
+        preview.style.pointerEvents = 'none';
+        preview.style.zIndex = 1000;
+        preview.style.opacity = 0.8;
+        document.body.appendChild(preview);
+        return preview;
+    }, []);
+
+    // Helper for updating drag preview position
+    const updateDragPreview = useCallback((preview, x, y) => {
+        if (!preview) return;
+        preview.style.left = `${x}px`;
+        preview.style.top = `${y}px`;
+    }, []);
+
+    // Helper for removing drag preview
+    const removeDragPreview = useCallback((preview) => {
+        if (!preview) return;
+        document.body.removeChild(preview);
+    }, []);
 
     return {
         isDragging,
-        draggedItem,
-        dragPosition,
-        gridRef,
-        handlers: {
-            onDragStart: handleDragStart,
-            onTouchStart: handleTouchStart
-        }
+        dragOffset,
+        draggableProps,
+        dropZoneProps,
+        createDragPreview,
+        updateDragPreview,
+        removeDragPreview
     };
 };
 
-// Helper component for drag preview
-const DragPreview = ({ item, position, gridSize }) => {
-    if (!item || !position) return null;
+// Helper hook for handling grid-based drag and drop
+export const useGridDragAndDrop = ({
+    gridSize,
+    cellSize,
+    onDragStart,
+    onDragEnd,
+    onDrop,
+    canDrag = () => true,
+    canDrop = () => true
+}) => {
+    const { isDragging, draggableProps, dropZoneProps, ...rest } = useDragAndDrop({
+        onDragStart,
+        onDragEnd,
+        onDrop: (dragData, dropZoneData, position) => {
+            // Convert pixel position to grid coordinates
+            const gridX = Math.floor(position.x / cellSize);
+            const gridY = Math.floor(position.y / cellSize);
 
-    return (
-        <div
-            style={{
-                position: 'fixed',
-                left: position.x,
-                top: position.y,
-                transform: 'translate(-50%, -50%)',
-                pointerEvents: 'none',
-                zIndex: 1000,
-                opacity: 0.8,
-                width: `${100 / gridSize}%`,
-                height: `${100 / gridSize}%`
-            }}
-        >
-            {/* Render your dragged item preview here */}
-            {item.sprite && (
-                <div
-                    className="grid"
-                    style={{
-                        gridTemplateColumns: `repeat(${SPRITE_GRID_SIZE}, 1fr)`
-                    }}
-                >
-                    {item.sprite.map((row, y) =>
-                        row.map((color, x) => (
-                            <div
-                                key={`${x}-${y}`}
-                                style={{ backgroundColor: color }}
-                                className="w-full h-full"
-                            />
-                        ))
-                    )}
-                </div>
-            )}
-        </div>
-    );
+            // Ensure coordinates are within grid bounds
+            if (gridX >= 0 && gridX < gridSize.width &&
+                gridY >= 0 && gridY < gridSize.height) {
+                onDrop?.(dragData, { ...dropZoneData, x: gridX, y: gridY });
+            }
+        },
+        canDrag,
+        canDrop
+    });
+
+    // Helper for getting grid cell at position
+    const getCellAtPosition = useCallback((x, y) => ({
+        x: Math.floor(x / cellSize),
+        y: Math.floor(y / cellSize)
+    }), [cellSize]);
+
+    return {
+        isDragging,
+        draggableProps,
+        dropZoneProps,
+        getCellAtPosition,
+        ...rest
+    };
 };
 
-export { useDragAndDrop, DragPreview };
+export default {
+    useDragAndDrop,
+    useGridDragAndDrop
+};

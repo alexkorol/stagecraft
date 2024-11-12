@@ -1,137 +1,205 @@
-const Tutorial = ({ onClose, currentStep = 0 }) => {
-    const [step, setStep] = React.useState(currentStep);
+import React, { useState, useEffect } from 'react';
+import { Book, ChevronRight, ChevronLeft, Check, X } from 'lucide-react';
 
-    const tutorials = [
-        {
-            title: "Welcome to StageCraft Creator!",
-            content: "Learn how to create interactive games and simulations using visual programming. Let's get started!",
-            image: null
-        },
-        {
-            title: "Creating Characters",
-            content: "Click 'Add Character' to open the sprite editor. Draw your character using the pixel editor and color palette.",
-            highlight: ".add-character-btn"
-        },
-        {
-            title: "Placing Characters",
-            content: "Select a character from the palette and click on the grid to place it.",
-            highlight: ".grid-cell"
-        },
-        {
-            title: "Creating Rules",
-            content: "Select a character and click 'Add Rule' to create behavior rules. Rules determine how characters act during simulation.",
-            highlight: ".add-rule-btn"
-        },
-        {
-            title: "Running Simulation",
-            content: "Click the Play button to start the simulation and watch your characters follow their rules!",
-            highlight: ".play-btn"
-        },
-        {
-            title: "Saving Your Work",
-            content: "Don't forget to save your project! Click 'Save' to store your work and 'Load' to return to it later.",
-            highlight: ".save-btn"
+const TUTORIALS = [
+    {
+        id: 'basics',
+        title: 'Getting Started',
+        steps: [
+            {
+                title: 'Welcome to StageCraft Creator',
+                content: 'Learn how to create interactive games and simulations using visual programming.',
+                action: 'next'
+            },
+            {
+                title: 'Creating Characters',
+                content: 'Click the "Add Character" button to create your first character. Use the sprite editor to design how it looks.',
+                target: '.add-character-btn',
+                action: 'click'
+            },
+            {
+                title: 'Placing Characters',
+                content: 'Click on the grid to place your character. You can move it around by clicking different cells.',
+                target: '.grid-cell',
+                action: 'click'
+            },
+            {
+                title: 'Creating Rules',
+                content: 'Select a character and click "Add Rule" to create behavior rules. Rules determine how characters act.',
+                target: '.add-rule-btn',
+                action: 'click'
+            },
+            {
+                title: 'Running the Simulation',
+                content: 'Click the Play button to start your simulation and see your rules in action!',
+                target: '.play-btn',
+                action: 'click'
+            }
+        ]
+    },
+    {
+        id: 'advanced',
+        title: 'Advanced Features',
+        steps: [
+            {
+                title: 'Multiple Rules',
+                content: 'Characters can have multiple rules. Rules are checked in order from top to bottom.',
+                target: '.rules-list',
+                action: 'next'
+            },
+            {
+                title: 'Rule Conditions',
+                content: 'Rules can have conditions like key presses, collisions, or proximity to other characters.',
+                target: '.rule-conditions',
+                action: 'next'
+            },
+            {
+                title: 'Animations',
+                content: 'Create multiple frames for your characters to add animations.',
+                target: '.sprite-frames',
+                action: 'next'
+            }
+        ]
+    }
+];
+
+const Tutorial = ({ onComplete, onClose }) => {
+    const [currentTutorial, setCurrentTutorial] = useState(0);
+    const [currentStep, setCurrentStep] = useState(0);
+    const [showHighlight, setShowHighlight] = useState(true);
+
+    const tutorial = TUTORIALS[currentTutorial];
+    const step = tutorial.steps[currentStep];
+    const isLastStep = currentStep === tutorial.steps.length - 1;
+    const isLastTutorial = currentTutorial === TUTORIALS.length - 1;
+
+    useEffect(() => {
+        if (step.target) {
+            const element = document.querySelector(step.target);
+            if (element) {
+                highlightElement(element);
+            }
         }
-    ];
+    }, [currentStep, currentTutorial]);
+
+    const highlightElement = (element) => {
+        const rect = element.getBoundingClientRect();
+        const highlight = document.createElement('div');
+        highlight.className = 'tutorial-highlight';
+        highlight.style.position = 'fixed';
+        highlight.style.top = `${rect.top}px`;
+        highlight.style.left = `${rect.left}px`;
+        highlight.style.width = `${rect.width}px`;
+        highlight.style.height = `${rect.height}px`;
+        highlight.style.border = '2px solid #3B82F6';
+        highlight.style.borderRadius = '4px';
+        highlight.style.animation = 'pulse 2s infinite';
+        highlight.style.pointerEvents = 'none';
+        highlight.style.zIndex = '1000';
+        
+        document.body.appendChild(highlight);
+
+        return () => {
+            document.body.removeChild(highlight);
+        };
+    };
 
     const handleNext = () => {
-        if (step < tutorials.length - 1) {
-            setStep(step + 1);
+        if (isLastStep) {
+            if (isLastTutorial) {
+                onComplete?.();
+                onClose();
+            } else {
+                setCurrentTutorial(prev => prev + 1);
+                setCurrentStep(0);
+            }
         } else {
-            onClose();
+            setCurrentStep(prev => prev + 1);
         }
     };
 
     const handlePrevious = () => {
-        if (step > 0) {
-            setStep(step - 1);
+        if (currentStep === 0) {
+            if (currentTutorial > 0) {
+                setCurrentTutorial(prev => prev - 1);
+                setCurrentStep(TUTORIALS[currentTutorial - 1].steps.length - 1);
+            }
+        } else {
+            setCurrentStep(prev => prev - 1);
         }
     };
 
     const handleSkip = () => {
-        if (typeof localStorage !== 'undefined') {
-            localStorage.setItem('tutorial_completed', 'true');
-        }
         onClose();
     };
 
-    React.useEffect(() => {
-        // Highlight the relevant element
-        const highlightClass = tutorials[step].highlight;
-        if (highlightClass) {
-            const element = document.querySelector(highlightClass);
-            if (element) {
-                element.classList.add('tutorial-highlight');
-            }
-        }
-
-        return () => {
-            // Clean up highlight
-            const element = document.querySelector(tutorials[step].highlight);
-            if (element) {
-                element.classList.remove('tutorial-highlight');
-            }
-        };
-    }, [step]);
-
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-                {/* Progress indicator */}
-                <div className="flex gap-1 mb-4">
-                    {tutorials.map((_, index) => (
-                        <div
-                            key={index}
-                            className={`h-1 flex-1 rounded ${
-                                index <= step ? 'bg-blue-500' : 'bg-gray-200'
-                            }`}
-                        />
-                    ))}
+        <div className="fixed inset-0 pointer-events-none z-50">
+            {/* Tutorial Dialog */}
+            <div 
+                className="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-xl p-6 w-[500px] pointer-events-auto"
+                style={{ maxWidth: 'calc(100vw - 2rem)' }}
+            >
+                {/* Progress Bar */}
+                <div className="absolute top-0 left-0 w-full h-1 bg-gray-100 rounded-t-lg overflow-hidden">
+                    <div 
+                        className="h-full bg-blue-500 transition-all duration-300"
+                        style={{ 
+                            width: `${((currentTutorial * tutorial.steps.length + currentStep + 1) / 
+                                    (TUTORIALS.reduce((acc, t) => acc + t.steps.length, 0))) * 100}%` 
+                        }}
+                    />
                 </div>
 
-                {/* Tutorial content */}
-                <div className="mb-6">
-                    <h3 className="text-xl font-bold mb-2">
-                        {tutorials[step].title}
-                    </h3>
-                    <p className="text-gray-600">
-                        {tutorials[step].content}
-                    </p>
-                    {tutorials[step].image && (
-                        <img
-                            src={tutorials[step].image}
-                            alt="Tutorial"
-                            className="mt-4 rounded border"
-                        />
-                    )}
-                </div>
-
-                {/* Navigation buttons */}
-                <div className="flex justify-between">
+                <div className="flex items-start justify-between mb-4">
                     <div>
-                        {step > 0 && (
-                            <button
-                                onClick={handlePrevious}
-                                className="px-4 py-2 text-gray-600 hover:text-gray-800"
-                            >
-                                Previous
-                            </button>
+                        <h3 className="text-lg font-medium">{step.title}</h3>
+                        <p className="text-sm text-gray-600 mt-1">{step.content}</p>
+                    </div>
+                    <button
+                        onClick={handleSkip}
+                        className="text-gray-400 hover:text-gray-500"
+                    >
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+
+                <div className="flex justify-between items-center mt-6">
+                    <button
+                        onClick={handlePrevious}
+                        disabled={currentTutorial === 0 && currentStep === 0}
+                        className={`
+                            flex items-center gap-1 px-3 py-1 rounded
+                            ${currentTutorial === 0 && currentStep === 0
+                                ? 'text-gray-400 cursor-not-allowed'
+                                : 'text-gray-600 hover:bg-gray-100'
+                            }
+                        `}
+                    >
+                        <ChevronLeft className="w-4 h-4" />
+                        Previous
+                    </button>
+
+                    <div className="text-sm text-gray-500">
+                        Step {currentStep + 1} of {tutorial.steps.length}
+                    </div>
+
+                    <button
+                        onClick={handleNext}
+                        className="flex items-center gap-1 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                    >
+                        {isLastStep && isLastTutorial ? (
+                            <>
+                                <Check className="w-4 h-4" />
+                                Finish
+                            </>
+                        ) : (
+                            <>
+                                Next
+                                <ChevronRight className="w-4 h-4" />
+                            </>
                         )}
-                    </div>
-                    <div className="flex gap-2">
-                        <button
-                            onClick={handleSkip}
-                            className="px-4 py-2 text-gray-600 hover:text-gray-800"
-                        >
-                            Skip Tutorial
-                        </button>
-                        <button
-                            onClick={handleNext}
-                            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                        >
-                            {step === tutorials.length - 1 ? 'Finish' : 'Next'}
-                        </button>
-                    </div>
+                    </button>
                 </div>
             </div>
         </div>

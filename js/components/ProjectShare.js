@@ -1,203 +1,167 @@
-const ProjectShare = ({ onClose, project }) => {
-    const [shareUrl, setShareUrl] = React.useState('');
-    const [shareMode, setShareMode] = React.useState('view');
-    const [expiryTime, setExpiryTime] = React.useState('never');
-    const [isGenerating, setIsGenerating] = React.useState(false);
-    const [collaborators, setCollaborators] = React.useState([]);
-    const [newCollaborator, setNewCollaborator] = React.useState('');
+import React, { useState } from 'react';
+import { Share2, Copy, Download, Upload, Lock, Globe } from 'lucide-react';
+import ProjectManager from '../utils/ProjectManager';
 
-    const generateShareUrl = async () => {
-        setIsGenerating(true);
+const ProjectShare = ({ project, onClose }) => {
+    const [shareMode, setShareMode] = useState('private');
+    const [shareLink, setShareLink] = useState('');
+    const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+    const [showCopiedMessage, setShowCopiedMessage] = useState(false);
+
+    const generateShareLink = async () => {
+        setIsGeneratingLink(true);
         try {
-            // In a real implementation, this would make an API call to create a share link
-            const baseUrl = window.location.origin;
-            const shareId = Math.random().toString(36).substring(2, 15);
-            const url = `${baseUrl}/share/${shareId}?mode=${shareMode}&expires=${expiryTime}`;
-            setShareUrl(url);
+            // Simulate API call to generate share link
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            const link = `https://stagecraft.example.com/p/${project.id}`;
+            setShareLink(link);
         } catch (error) {
-            window.showToast?.('Failed to generate share link: ' + error.message, 'error');
+            console.error('Failed to generate share link:', error);
         } finally {
-            setIsGenerating(false);
+            setIsGeneratingLink(false);
         }
     };
 
-    const copyToClipboard = async () => {
+    const copyToClipboard = async (text) => {
         try {
-            await navigator.clipboard.writeText(shareUrl);
-            window.showToast?.('Share link copied to clipboard', 'success');
+            await navigator.clipboard.writeText(text);
+            setShowCopiedMessage(true);
+            setTimeout(() => setShowCopiedMessage(false), 2000);
         } catch (error) {
-            window.showToast?.('Failed to copy to clipboard', 'error');
+            console.error('Failed to copy to clipboard:', error);
         }
     };
 
-    const addCollaborator = () => {
-        if (!newCollaborator) return;
-        
-        setCollaborators(prev => [
-            ...prev,
-            {
-                email: newCollaborator,
-                role: 'editor',
-                added: new Date().toISOString()
+    const exportProject = () => {
+        ProjectManager.saveProject(project);
+    };
+
+    const handleFileUpload = async (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            try {
+                await ProjectManager.loadProject(file);
+                onClose();
+            } catch (error) {
+                console.error('Failed to import project:', error);
             }
-        ]);
-        setNewCollaborator('');
-    };
-
-    const removeCollaborator = (email) => {
-        setCollaborators(prev => prev.filter(c => c.email !== email));
-    };
-
-    const updateCollaboratorRole = (email, role) => {
-        setCollaborators(prev => prev.map(c => 
-            c.email === email ? { ...c, role } : c
-        ));
+        }
     };
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-[600px] max-w-full mx-4">
-                <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold">Share Project</h2>
-                    <button
-                        onClick={onClose}
-                        className="text-gray-500 hover:text-gray-700"
-                    >
-                        <svg
-                            className="w-6 h-6"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
+            <div className="bg-white rounded-lg shadow-xl w-[500px] max-w-full">
+                <div className="p-6">
+                    <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center space-x-2">
+                            <Share2 className="w-5 h-5" />
+                            <h2 className="text-xl font-semibold">Share Project</h2>
+                        </div>
+                        <button
+                            onClick={onClose}
+                            className="text-gray-400 hover:text-gray-500"
                         >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M6 18L18 6M6 6l12 12"
-                            />
-                        </svg>
-                    </button>
-                </div>
+                            ×
+                        </button>
+                    </div>
 
-                {/* Share Link Section */}
-                <div className="mb-6">
-                    <h3 className="font-medium mb-3">Share Link</h3>
-                    
-                    <div className="space-y-4">
-                        <div className="flex gap-2">
-                            <select
-                                value={shareMode}
-                                onChange={(e) => setShareMode(e.target.value)}
-                                className="p-2 border rounded"
-                            >
-                                <option value="view">View only</option>
-                                <option value="edit">Can edit</option>
-                                <option value="copy">Can duplicate</option>
-                            </select>
-
-                            <select
-                                value={expiryTime}
-                                onChange={(e) => setExpiryTime(e.target.value)}
-                                className="p-2 border rounded"
-                            >
-                                <option value="never">Never expires</option>
-                                <option value="1d">1 day</option>
-                                <option value="7d">7 days</option>
-                                <option value="30d">30 days</option>
-                            </select>
-
+                    {/* Share Mode Selection */}
+                    <div className="mb-6">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Share Mode
+                        </label>
+                        <div className="grid grid-cols-2 gap-4">
                             <button
-                                onClick={generateShareUrl}
-                                disabled={isGenerating}
-                                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+                                className={`
+                                    flex items-center justify-center gap-2 p-3 rounded-lg border
+                                    ${shareMode === 'private' 
+                                        ? 'border-blue-500 bg-blue-50 text-blue-700' 
+                                        : 'border-gray-200 hover:bg-gray-50'
+                                    }
+                                `}
+                                onClick={() => setShareMode('private')}
                             >
-                                Generate Link
+                                <Lock className="w-4 h-4" />
+                                <span>Private Link</span>
+                            </button>
+                            <button
+                                className={`
+                                    flex items-center justify-center gap-2 p-3 rounded-lg border
+                                    ${shareMode === 'public' 
+                                        ? 'border-blue-500 bg-blue-50 text-blue-700' 
+                                        : 'border-gray-200 hover:bg-gray-50'
+                                    }
+                                `}
+                                onClick={() => setShareMode('public')}
+                            >
+                                <Globe className="w-4 h-4" />
+                                <span>Public Link</span>
                             </button>
                         </div>
+                    </div>
 
-                        {shareUrl && (
-                            <div className="flex gap-2">
+                    {/* Share Link Generation */}
+                    {!shareLink ? (
+                        <button
+                            onClick={generateShareLink}
+                            disabled={isGeneratingLink}
+                            className={`
+                                w-full py-2 px-4 rounded-lg text-white
+                                ${isGeneratingLink 
+                                    ? 'bg-gray-400' 
+                                    : 'bg-blue-500 hover:bg-blue-600'
+                                }
+                            `}
+                        >
+                            {isGeneratingLink ? 'Generating Link...' : 'Generate Share Link'}
+                        </button>
+                    ) : (
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-2">
                                 <input
                                     type="text"
-                                    value={shareUrl}
+                                    value={shareLink}
                                     readOnly
-                                    className="flex-1 p-2 border rounded bg-gray-50"
+                                    className="flex-1 p-2 border rounded-lg bg-gray-50"
                                 />
                                 <button
-                                    onClick={copyToClipboard}
-                                    className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+                                    onClick={() => copyToClipboard(shareLink)}
+                                    className="p-2 text-gray-500 hover:text-gray-700"
+                                    title="Copy to clipboard"
                                 >
-                                    Copy
+                                    <Copy className="w-5 h-5" />
                                 </button>
                             </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Collaborators Section */}
-                <div>
-                    <h3 className="font-medium mb-3">Collaborators</h3>
-                    
-                    <div className="space-y-4">
-                        <div className="flex gap-2">
-                            <input
-                                type="email"
-                                placeholder="Enter email address"
-                                value={newCollaborator}
-                                onChange={(e) => setNewCollaborator(e.target.value)}
-                                className="flex-1 p-2 border rounded"
-                            />
-                            <button
-                                onClick={addCollaborator}
-                                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                            >
-                                Add
-                            </button>
+                            {showCopiedMessage && (
+                                <p className="text-sm text-green-600">
+                                    Copied to clipboard!
+                                </p>
+                            )}
                         </div>
+                    )}
 
-                        <div className="space-y-2">
-                            {collaborators.map(collaborator => (
-                                <div
-                                    key={collaborator.email}
-                                    className="flex items-center justify-between p-2 border rounded"
-                                >
-                                    <div>
-                                        <div>{collaborator.email}</div>
-                                        <div className="text-sm text-gray-500">
-                                            Added {new Date(collaborator.added).toLocaleDateString()}
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <select
-                                            value={collaborator.role}
-                                            onChange={(e) => updateCollaboratorRole(collaborator.email, e.target.value)}
-                                            className="p-1 border rounded text-sm"
-                                        >
-                                            <option value="viewer">Viewer</option>
-                                            <option value="editor">Editor</option>
-                                            <option value="admin">Admin</option>
-                                        </select>
-                                        <button
-                                            onClick={() => removeCollaborator(collaborator.email)}
-                                            className="text-red-500 hover:text-red-600"
-                                        >
-                                            <svg
-                                                className="w-5 h-5"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth={2}
-                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                                />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
+                    <div className="mt-6 pt-6 border-t">
+                        <div className="grid grid-cols-2 gap-4">
+                            {/* Export Project */}
+                            <button
+                                onClick={exportProject}
+                                className="flex items-center justify-center gap-2 p-2 rounded-lg border hover:bg-gray-50"
+                            >
+                                <Download className="w-4 h-4" />
+                                <span>Export Project</span>
+                            </button>
+
+                            {/* Import Project */}
+                            <label className="flex items-center justify-center gap-2 p-2 rounded-lg border hover:bg-gray-50 cursor-pointer">
+                                <Upload className="w-4 h-4" />
+                                <span>Import Project</span>
+                                <input
+                                    type="file"
+                                    accept=".scp"
+                                    className="hidden"
+                                    onChange={handleFileUpload}
+                                />
+                            </label>
                         </div>
                     </div>
                 </div>

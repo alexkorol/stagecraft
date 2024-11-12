@@ -1,180 +1,138 @@
+import { TRIGGERS } from '../constants';
+
 class EventManager {
     constructor() {
-        this.events = new Map();
-        this.triggers = new Map();
-        this.eventQueue = [];
-        this.isProcessing = false;
+        this.listeners = new Map();
+        this.keyStates = new Set();
+        this.mousePosition = { x: -1, y: -1 };
+        this.clickedPosition = null;
+        this.lastTick = performance.now();
+        this.tickInterval = 1000; // Default 1 second tick interval
     }
 
-    // Register an event handler
-    on(eventName, handler, priority = 0) {
-        if (!this.events.has(eventName)) {
-            this.events.set(eventName, []);
+    // Event registration
+    on(eventType, callback) {
+        if (!this.listeners.has(eventType)) {
+            this.listeners.set(eventType, new Set());
         }
-
-        const handlers = this.events.get(eventName);
-        handlers.push({ handler, priority });
-        handlers.sort((a, b) => b.priority - a.priority);
-
-        return () => this.off(eventName, handler);
+        this.listeners.get(eventType).add(callback);
+        return () => this.off(eventType, callback);
     }
 
-    // Remove an event handler
-    off(eventName, handler) {
-        if (!this.events.has(eventName)) return;
-
-        const handlers = this.events.get(eventName);
-        const index = handlers.findIndex(h => h.handler === handler);
-        if (index !== -1) {
-            handlers.splice(index, 1);
+    off(eventType, callback) {
+        if (this.listeners.has(eventType)) {
+            this.listeners.get(eventType).delete(callback);
         }
     }
 
-    // Emit an event
-    async emit(eventName, data = {}) {
-        if (!this.events.has(eventName)) return;
-
-        const handlers = this.events.get(eventName);
-        const results = [];
-
-        for (const { handler } of handlers) {
-            try {
-                const result = await handler(data);
-                results.push(result);
-            } catch (error) {
-                console.error(`Error in event handler for ${eventName}:`, error);
-            }
-        }
-
-        return results;
-    }
-
-    // Register a trigger condition
-    registerTrigger(triggerName, condition, action, priority = 0) {
-        if (!this.triggers.has(triggerName)) {
-            this.triggers.set(triggerName, []);
-        }
-
-        const triggers = this.triggers.get(triggerName);
-        triggers.push({ condition, action, priority });
-        triggers.sort((a, b) => b.priority - a.priority);
-
-        return () => this.removeTrigger(triggerName, condition, action);
-    }
-
-    // Remove a trigger
-    removeTrigger(triggerName, condition, action) {
-        if (!this.triggers.has(triggerName)) return;
-
-        const triggers = this.triggers.get(triggerName);
-        const index = triggers.findIndex(t => 
-            t.condition === condition && t.action === action
-        );
-        
-        if (index !== -1) {
-            triggers.splice(index, 1);
-        }
-    }
-
-    // Check triggers
-    async checkTriggers(triggerName, context) {
-        if (!this.triggers.has(triggerName)) return;
-
-        const triggers = this.triggers.get(triggerName);
-        const activatedTriggers = [];
-
-        for (const trigger of triggers) {
-            try {
-                if (await trigger.condition(context)) {
-                    activatedTriggers.push(trigger.action(context));
+    // Event emission
+    emit(eventType, data) {
+        if (this.listeners.has(eventType)) {
+            this.listeners.get(eventType).forEach(callback => {
+                try {
+                    callback(data);
+                } catch (error) {
+                    console.error(`Error in event listener for ${eventType}:`, error);
                 }
-            } catch (error) {
-                console.error(`Error in trigger ${triggerName}:`, error);
-            }
+            });
         }
-
-        return Promise.all(activatedTriggers);
     }
 
-    // Queue an event for later processing
-    queueEvent(eventName, data) {
-        this.eventQueue.push({ eventName, data });
-        this.processEventQueue();
+    // Input handling
+    handleKeyDown(event) {
+        this.keyStates.add(event.key.toLowerCase());
+        this.emit('keyDown', event.key.toLowerCase());
     }
 
-    // Process queued events
-    async processEventQueue() {
-        if (this.isProcessing || this.eventQueue.length === 0) return;
+    handleKeyUp(event) {
+        this.keyStates.delete(event.key.toLowerCase());
+        this.emit('keyUp', event.key.toLowerCase());
+    }
 
-        this.isProcessing = true;
+    handleMouseMove(x, y) {
+        this.mousePosition = { x, y };
+        this.emit('mouseMove', { x, y });
+    }
 
-        while (this.eventQueue.length > 0) {
-            const { eventName, data } = this.eventQueue.shift();
-            await this.emit(eventName, data);
+    handleClick(x, y) {
+        this.clickedPosition = { x, y };
+        this.emit('click', { x, y });
+        // Reset click after processing
+        setTimeout(() => {
+            this.clickedPosition = null;
+        }, 0);
+    }
+
+    // Rule trigger checking
+    checkTrigger(rule, character, timestamp) {
+        switch (rule.trigger) {
+            case TRIGGERS.ALWAYS:
+                return true;
+
+            case TRIGGERS.KEY_PRESS:
+                return this.keyStates.has(rule.triggerKey.toLowerCase());
+
+            case TRIGGERS.COLLISION:
+                // Collision checking should be handled by CollisionManager
+                return false;
+
+            case TRIGGERS.PROXIMITY:
+                // Proximity checking should be handled by CollisionManager
+                return false;
+
+            case TRIGGERS.TIMER:
+                if (timestamp - this.lastTick >= this.tickInterval) {
+                    this.lastTick = timestamp;
+                    return true;
+                }
+                return false;
+
+            case TRIGGERS.CLICK:
+                if (!this.clickedPosition) return false;
+                return (
+                    this.clickedPosition.x === character.x && 
+                    this.clickedPosition.y === character.y
+                );
+
+            default:
+                return false;
         }
-
-        this.isProcessing = false;
     }
 
-    // Clear all events and triggers
-    clear() {
-        this.events.clear();
-        this.triggers.clear();
-        this.eventQueue = [];
-        this.isProcessing = false;
+    // Utility methods
+    isKeyPressed(key) {
+        return this.keyStates.has(key.toLowerCase());
+    }
+
+    getMousePosition() {
+        return this.mousePosition;
+    }
+
+    setTickInterval(interval) {
+        this.tickInterval = Math.max(100, Math.min(5000, interval));
+    }
+
+    // Clean up
+    reset() {
+        this.keyStates.clear();
+        this.mousePosition = { x: -1, y: -1 };
+        this.clickedPosition = null;
+        this.lastTick = performance.now();
+    }
+
+    destroy() {
+        this.listeners.clear();
+        this.reset();
     }
 }
 
-// React hook for using EventManager
-const useEventManager = () => {
-    const [eventManager] = React.useState(() => new EventManager());
+// Create a singleton instance
+const eventManager = new EventManager();
 
-    const addEventListener = React.useCallback((eventName, handler, priority) => {
-        return eventManager.on(eventName, handler, priority);
-    }, [eventManager]);
+// Set up global event listeners
+if (typeof window !== 'undefined') {
+    window.addEventListener('keydown', (e) => eventManager.handleKeyDown(e));
+    window.addEventListener('keyup', (e) => eventManager.handleKeyUp(e));
+}
 
-    const removeEventListener = React.useCallback((eventName, handler) => {
-        eventManager.off(eventName, handler);
-    }, [eventManager]);
-
-    const emitEvent = React.useCallback((eventName, data) => {
-        return eventManager.emit(eventName, data);
-    }, [eventManager]);
-
-    const addTrigger = React.useCallback((triggerName, condition, action, priority) => {
-        return eventManager.registerTrigger(triggerName, condition, action, priority);
-    }, [eventManager]);
-
-    React.useEffect(() => {
-        return () => {
-            eventManager.clear();
-        };
-    }, [eventManager]);
-
-    return {
-        addEventListener,
-        removeEventListener,
-        emitEvent,
-        addTrigger,
-        queueEvent: eventManager.queueEvent.bind(eventManager),
-        checkTriggers: eventManager.checkTriggers.bind(eventManager)
-    };
-};
-
-// Common game events
-const GameEvents = {
-    CHARACTER_MOVED: 'characterMoved',
-    RULE_ADDED: 'ruleAdded',
-    RULE_REMOVED: 'ruleRemoved',
-    SIMULATION_STARTED: 'simulationStarted',
-    SIMULATION_STOPPED: 'simulationStopped',
-    CHARACTER_CREATED: 'characterCreated',
-    CHARACTER_DELETED: 'characterDeleted',
-    COLLISION: 'collision',
-    SCENE_CHANGED: 'sceneChanged',
-    STATE_CHANGED: 'stateChanged',
-    GAME_SAVED: 'gameSaved',
-    GAME_LOADED: 'gameLoaded'
-};
-
-export { EventManager, useEventManager, GameEvents };
+export default eventManager;

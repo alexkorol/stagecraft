@@ -5,70 +5,102 @@ class AudioManager {
         this.currentMusic = null;
         this.isMuted = false;
         this.volume = 1.0;
-        this.musicVolume = 0.7;
-        this.soundVolume = 1.0;
+        this.musicVolume = 0.5;
+        this.soundVolume = 0.7;
+        this.context = null;
+
+        this.initAudioContext();
+    }
+
+    // Initialize Web Audio API context
+    initAudioContext() {
+        try {
+            window.AudioContext = window.AudioContext || window.webkitAudioContext;
+            this.context = new AudioContext();
+        } catch (error) {
+            console.error('Web Audio API not supported:', error);
+        }
     }
 
     // Load a sound effect
     async loadSound(name, url) {
         try {
-            const audio = new Audio();
-            audio.src = url;
-            await new Promise((resolve, reject) => {
-                audio.addEventListener('canplaythrough', resolve);
-                audio.addEventListener('error', reject);
-                audio.load();
+            const response = await fetch(url);
+            const arrayBuffer = await response.arrayBuffer();
+            const audioBuffer = await this.context.decodeAudioData(arrayBuffer);
+            
+            this.sounds.set(name, {
+                buffer: audioBuffer,
+                sources: new Set()
             });
-            this.sounds.set(name, audio);
+            
+            return true;
         } catch (error) {
-            console.error(`Failed to load sound ${name}:`, error);
+            console.error(`Failed to load sound '${name}':`, error);
+            return false;
         }
     }
 
     // Load background music
     async loadMusic(name, url) {
         try {
-            const audio = new Audio();
-            audio.src = url;
+            const audio = new Audio(url);
             audio.loop = true;
-            await new Promise((resolve, reject) => {
-                audio.addEventListener('canplaythrough', resolve);
-                audio.addEventListener('error', reject);
-                audio.load();
+            
+            this.music.set(name, {
+                audio,
+                volume: this.musicVolume
             });
-            this.music.set(name, audio);
+            
+            return true;
         } catch (error) {
-            console.error(`Failed to load music ${name}:`, error);
+            console.error(`Failed to load music '${name}':`, error);
+            return false;
         }
     }
 
     // Play a sound effect
     playSound(name, options = {}) {
-        if (this.isMuted) return;
-
-        const sound = this.sounds.get(name);
-        if (!sound) return;
-
-        // Clone the audio to allow multiple simultaneous plays
-        const soundInstance = sound.cloneNode();
-        soundInstance.volume = this.soundVolume * this.volume * (options.volume || 1.0);
+        if (this.isMuted) return null;
         
-        if (options.loop) {
-            soundInstance.loop = true;
+        const sound = this.sounds.get(name);
+        if (!sound) {
+            console.warn(`Sound '${name}' not found`);
+            return null;
         }
 
-        if (options.pitch) {
-            soundInstance.playbackRate = options.pitch;
-        }
+        try {
+            const source = this.context.createBufferSource();
+            const gainNode = this.context.createGain();
+            
+            source.buffer = sound.buffer;
+            source.connect(gainNode);
+            gainNode.connect(this.context.destination);
 
-        const promise = soundInstance.play();
-        if (promise) {
-            promise.catch(error => {
-                console.error(`Failed to play sound ${name}:`, error);
-            });
-        }
+            // Apply options
+            gainNode.gain.value = (options.volume ?? 1) * this.soundVolume * this.volume;
+            source.playbackRate.value = options.playbackRate ?? 1;
+            if (options.loop) source.loop = true;
 
-        return soundInstance;
+            // Start playback
+            const startTime = options.delay ? this.context.currentTime + options.delay : this.context.currentTime;
+            source.start(startTime);
+
+            // Store source for stopping later
+            sound.sources.add(source);
+
+            // Clean up when finished
+            source.onended = () => {
+                sound.sources.delete(source);
+                source.disconnect();
+                gainNode.disconnect();
+            };
+
+            return source;
+        } catch (error) {
+            console.error(`Failed to play sound '${name}':`, error);
+            return null;
+        }
     }
 
     // Play background music
@@ -76,83 +108,97 @@ class AudioManager {
         if (this.isMuted) return;
 
         const music = this.music.get(name);
-        if (!music) return;
+        if (!music) {
+            console.warn(`Music '${name}' not found`);
+            return;
+        }
 
-        if (this.currentMusic) {
+        // Stop current music
+        if (this.currentMusic && this.currentMusic !== name) {
             this.stopMusic(fadeInDuration);
         }
 
-        music.volume = 0;
-        music.play();
-        this.currentMusic = music;
+        try {
+            music.audio.volume = fadeInDuration > 0 ? 0 : this.musicVolume * this.volume;
+            music.audio.play();
+            this.currentMusic = name;
 
-        if (fadeInDuration > 0) {
-            this.fadeIn(music, this.musicVolume * this.volume, fadeInDuration);
-        } else {
-            music.volume = this.musicVolume * this.volume;
+            // Fade in if requested
+            if (fadeInDuration > 0) {
+                const startTime = performance.now();
+                const animate = () => {
+                    const elapsed = performance.now() - startTime;
+                    const progress = Math.min(elapsed / fadeInDuration, 1);
+                    music.audio.volume = progress * this.musicVolume * this.volume;
+
+                    if (progress < 1) {
+                        requestAnimationFrame(animate);
+                    }
+                };
+                requestAnimationFrame(animate);
+            }
+        } catch (error) {
+            console.error(`Failed to play music '${name}':`, error);
         }
+    }
+
+    // Stop a specific sound
+    stopSound(name) {
+        const sound = this.sounds.get(name);
+        if (!sound) return;
+
+        sound.sources.forEach(source => {
+            try {
+                source.stop();
+            } catch (error) {
+                console.error(`Failed to stop sound '${name}':`, error);
+            }
+        });
+        sound.sources.clear();
     }
 
     // Stop background music
     stopMusic(fadeOutDuration = 0) {
         if (!this.currentMusic) return;
 
+        const music = this.music.get(this.currentMusic);
+        if (!music) return;
+
         if (fadeOutDuration > 0) {
-            this.fadeOut(this.currentMusic, fadeOutDuration).then(() => {
-                this.currentMusic.pause();
-                this.currentMusic.currentTime = 0;
-            });
-        } else {
-            this.currentMusic.pause();
-            this.currentMusic.currentTime = 0;
-        }
-    }
+            const startVolume = music.audio.volume;
+            const startTime = performance.now();
+            
+            const animate = () => {
+                const elapsed = performance.now() - startTime;
+                const progress = Math.min(elapsed / fadeOutDuration, 1);
+                music.audio.volume = startVolume * (1 - progress);
 
-    // Fade in audio
-    fadeIn(audio, targetVolume, duration) {
-        const steps = 60;
-        const stepTime = duration / steps;
-        const stepVolume = targetVolume / steps;
-        let currentStep = 0;
-
-        const fadeInterval = setInterval(() => {
-            currentStep++;
-            audio.volume = Math.min(stepVolume * currentStep, targetVolume);
-
-            if (currentStep >= steps) {
-                clearInterval(fadeInterval);
-            }
-        }, stepTime);
-    }
-
-    // Fade out audio
-    async fadeOut(audio, duration) {
-        return new Promise(resolve => {
-            const startVolume = audio.volume;
-            const steps = 60;
-            const stepTime = duration / steps;
-            const stepVolume = startVolume / steps;
-            let currentStep = steps;
-
-            const fadeInterval = setInterval(() => {
-                currentStep--;
-                audio.volume = stepVolume * currentStep;
-
-                if (currentStep <= 0) {
-                    clearInterval(fadeInterval);
-                    resolve();
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    music.audio.pause();
+                    music.audio.currentTime = 0;
                 }
-            }, stepTime);
-        });
+            };
+            requestAnimationFrame(animate);
+        } else {
+            music.audio.pause();
+            music.audio.currentTime = 0;
+        }
+
+        this.currentMusic = null;
     }
 
     // Set master volume
     setVolume(volume) {
         this.volume = Math.max(0, Math.min(1, volume));
         
-        // Update current music volume
+        // Update music volume
         if (this.currentMusic) {
-            this.currentMusic.volume = this.musicVolume * this.volume;
+            const music = this.music.get(this.currentMusic);
+            if (music) {
+                music.audio.volume = this.musicVolume * this.volume;
+            }
         }
     }
 
@@ -160,7 +206,10 @@ class AudioManager {
     setMusicVolume(volume) {
         this.musicVolume = Math.max(0, Math.min(1, volume));
         if (this.currentMusic) {
-            this.currentMusic.volume = this.musicVolume * this.volume;
+            const music = this.music.get(this.currentMusic);
+            if (music) {
+                music.audio.volume = this.musicVolume * this.volume;
+            }
         }
     }
 
@@ -172,73 +221,38 @@ class AudioManager {
     // Mute/unmute all audio
     setMuted(muted) {
         this.isMuted = muted;
+        
         if (this.currentMusic) {
-            this.currentMusic.volume = muted ? 0 : this.musicVolume * this.volume;
-        }
-    }
-
-    // Preload common game sounds
-    async preloadGameSounds() {
-        const soundsToLoad = {
-            'click': '/sounds/click.mp3',
-            'move': '/sounds/move.mp3',
-            'collision': '/sounds/collision.mp3',
-            'success': '/sounds/success.mp3',
-            'failure': '/sounds/failure.mp3',
-            'background': '/sounds/background.mp3'
-        };
-
-        const loadPromises = [];
-        for (const [name, url] of Object.entries(soundsToLoad)) {
-            if (url.includes('background')) {
-                loadPromises.push(this.loadMusic(name, url));
-            } else {
-                loadPromises.push(this.loadSound(name, url));
+            const music = this.music.get(this.currentMusic);
+            if (music) {
+                music.audio.volume = muted ? 0 : this.musicVolume * this.volume;
             }
         }
 
-        await Promise.all(loadPromises);
+        if (muted) {
+            this.sounds.forEach(sound => {
+                sound.sources.forEach(source => {
+                    try {
+                        source.stop();
+                    } catch (error) {
+                        // Ignore errors from already stopped sources
+                    }
+                });
+                sound.sources.clear();
+            });
+        }
+    }
+
+    // Clean up resources
+    dispose() {
+        this.stopMusic();
+        this.sounds.forEach(sound => this.stopSound(sound));
+        this.sounds.clear();
+        this.music.clear();
+        if (this.context) {
+            this.context.close();
+        }
     }
 }
 
-// React hook for using AudioManager
-const useAudioManager = () => {
-    const [audioManager] = React.useState(() => new AudioManager());
-    const [isMuted, setIsMuted] = React.useState(false);
-    const [volume, setVolume] = React.useState(1.0);
-
-    React.useEffect(() => {
-        // Load sounds when component mounts
-        audioManager.preloadGameSounds();
-
-        // Clean up when component unmounts
-        return () => {
-            audioManager.stopMusic();
-        };
-    }, [audioManager]);
-
-    const toggleMute = React.useCallback(() => {
-        const newMuted = !isMuted;
-        setIsMuted(newMuted);
-        audioManager.setMuted(newMuted);
-    }, [isMuted, audioManager]);
-
-    const updateVolume = React.useCallback((newVolume) => {
-        setVolume(newVolume);
-        audioManager.setVolume(newVolume);
-    }, [audioManager]);
-
-    return {
-        playSound: audioManager.playSound.bind(audioManager),
-        playMusic: audioManager.playMusic.bind(audioManager),
-        stopMusic: audioManager.stopMusic.bind(audioManager),
-        setMusicVolume: audioManager.setMusicVolume.bind(audioManager),
-        setSoundVolume: audioManager.setSoundVolume.bind(audioManager),
-        toggleMute,
-        updateVolume,
-        isMuted,
-        volume
-    };
-};
-
-export { AudioManager, useAudioManager };
+export default new AudioManager();

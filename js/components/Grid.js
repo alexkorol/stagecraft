@@ -1,129 +1,140 @@
-const Grid = ({ project, onCellClick, isRunning }) => {
-    const gridRef = React.useRef(null);
-    const [grid, setGrid] = React.useState(
-        Array(project.gridSize).fill().map(() => Array(project.gridSize).fill(null))
-    );
+import React, { useRef, useEffect } from 'react';
+import { GRID_SIZES } from '../constants';
 
-    // Update grid with character positions
-    React.useEffect(() => {
-        const newGrid = Array(project.gridSize).fill().map(() => Array(project.gridSize).fill(null));
-        project.characters.forEach(char => {
-            if (char.x >= 0 && char.x < project.gridSize && char.y >= 0 && char.y < project.gridSize) {
-                newGrid[char.y][char.x] = char;
-            }
-        });
-        setGrid(newGrid);
-    }, [project.characters, project.gridSize]);
+const Grid = ({ 
+    size = GRID_SIZES.SMALL,
+    characters,
+    selectedCharacter,
+    onPlaceCharacter,
+    isRunning,
+    cellSize = 50,
+    showGrid = true,
+    highlightCells = []  // For rule editing, showing valid moves, etc.
+}) => {
+    const gridRef = useRef(null);
+    const grid = Array(size.height).fill().map(() => Array(size.width).fill(null));
 
-    // Simulation loop
-    React.useEffect(() => {
-        let intervalId;
-        
-        if (isRunning) {
-            intervalId = setInterval(() => {
-                executeRules();
-            }, 1000); // Execute rules every second
+    // Place characters on grid
+    characters.forEach(char => {
+        if (char.x >= 0 && char.x < size.width && char.y >= 0 && char.y < size.height) {
+            grid[char.y][char.x] = char;
         }
+    });
 
-        return () => {
-            if (intervalId) {
-                clearInterval(intervalId);
-            }
-        };
-    }, [isRunning, project.rules]);
-
-    const executeRules = () => {
-        const updatedCharacters = [...project.characters];
-        
-        // Process each character's rules
-        updatedCharacters.forEach(char => {
-            const charRules = project.rules.filter(rule => rule.characterId === char.id);
-            
-            // Find the first applicable rule
-            const applicableRule = charRules.find(rule => {
-                // Check rule conditions here
-                return true; // For now, all rules are applicable
-            });
-
-            if (applicableRule) {
-                // Apply the rule's effects
-                switch (applicableRule.action) {
-                    case 'move':
-                        let newX = char.x;
-                        let newY = char.y;
-                        
-                        switch (applicableRule.direction) {
-                            case 'right':
-                                newX = Math.min(char.x + 1, project.gridSize - 1);
-                                break;
-                            case 'left':
-                                newX = Math.max(char.x - 1, 0);
-                                break;
-                            case 'up':
-                                newY = Math.max(char.y - 1, 0);
-                                break;
-                            case 'down':
-                                newY = Math.min(char.y + 1, project.gridSize - 1);
-                                break;
-                        }
-
-                        // Check if the new position is empty
-                        if (!grid[newY][newX]) {
-                            char.x = newX;
-                            char.y = newY;
-                        }
-                        break;
-                    // Add more action types here
-                }
-            }
-        });
-
-        // Update the project with new character positions
-        const updatedProject = {
-            ...project,
-            characters: updatedCharacters
-        };
-        
-        // Save the updated project
-        StorageManager.saveProject(updatedProject);
+    const handleCellClick = (x, y) => {
+        if (isRunning) return;
+        onPlaceCharacter(x, y);
     };
 
-    const renderCell = (cell, x, y) => {
+    const renderCharacterSprite = (character) => {
+        if (!character?.pixels) return null;
+
         return (
             <div
-                key={`${x}-${y}`}
-                className={`grid-cell ${!cell && 'hover:bg-gray-50'} ${
-                    isRunning ? 'cursor-not-allowed' : 'cursor-pointer'
-                }`}
-                onClick={() => onCellClick(x, y)}
+                className="w-full h-full"
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns: `repeat(${character.size}, 1fr)`,
+                    transform: character.direction === 'left' ? 'scaleX(-1)' : 'none'
+                }}
             >
-                {cell && (
-                    <div className="w-full h-full grid grid-cols-8 grid-rows-8">
-                        {cell.sprite.map((row, i) =>
-                            row.map((color, j) => (
-                                <div
-                                    key={`${i}-${j}`}
-                                    className="sprite-pixel"
-                                    style={{ backgroundColor: color }}
-                                />
-                            ))
-                        )}
-                    </div>
+                {character.pixels.map((row, y) =>
+                    row.map((color, x) => (
+                        <div
+                            key={`${x}-${y}`}
+                            style={{ backgroundColor: color }}
+                            className="w-full h-full"
+                        />
+                    ))
                 )}
             </div>
         );
     };
 
+    // Handle drag and drop
+    const handleDragOver = (e) => {
+        e.preventDefault();
+    };
+
+    const handleDrop = (e, x, y) => {
+        e.preventDefault();
+        if (isRunning) return;
+        
+        const characterId = e.dataTransfer.getData('character');
+        if (characterId) {
+            onPlaceCharacter(x, y, characterId);
+        }
+    };
+
+    // Optional: Add grid animation during simulation
+    useEffect(() => {
+        if (isRunning) {
+            gridRef.current?.classList.add('running');
+        } else {
+            gridRef.current?.classList.remove('running');
+        }
+    }, [isRunning]);
+
     return (
-        <div
+        <div 
             ref={gridRef}
-            className="grid gap-px bg-gray-200 p-1 w-fit mx-auto"
+            className={`grid gap-px bg-gray-200 p-1 rounded-lg ${
+                isRunning ? 'cursor-not-allowed' : 'cursor-pointer'
+            }`}
             style={{
-                gridTemplateColumns: `repeat(${project.gridSize}, ${CELL_SIZE}px)`
+                gridTemplateColumns: `repeat(${size.width}, ${cellSize}px)`,
+                width: 'fit-content'
             }}
         >
             {grid.map((row, y) =>
-                row.map((cell, x) => renderCell(cell, x, y))
+                row.map((cell, x) => {
+                    const isHighlighted = highlightCells.some(
+                        pos => pos.x === x && pos.y === y
+                    );
+
+                    return (
+                        <div
+                            key={`${x}-${y}`}
+                            className={`
+                                relative bg-white transition-colors
+                                ${showGrid ? 'border border-gray-100' : ''}
+                                ${isHighlighted ? 'bg-blue-50' : ''}
+                                ${!isRunning ? 'hover:bg-gray-50' : ''}
+                            `}
+                            style={{
+                                width: cellSize,
+                                height: cellSize
+                            }}
+                            onClick={() => handleCellClick(x, y)}
+                            onDragOver={handleDragOver}
+                            onDrop={(e) => handleDrop(e, x, y)}
+                        >
+                            {/* Grid coordinates (optional, for debugging) */}
+                            {false && (
+                                <div className="absolute top-0 left-0 text-xs text-gray-400">
+                                    {x},{y}
+                                </div>
+                            )}
+
+                            {/* Character sprite */}
+                            {cell && (
+                                <div 
+                                    className={`
+                                        absolute inset-0 p-1
+                                        ${isRunning ? 'transition-all duration-200' : ''}
+                                    `}
+                                >
+                                    {renderCharacterSprite(cell)}
+                                </div>
+                            )}
+
+                            {/* Highlight overlay for valid moves */}
+                            {isHighlighted && (
+                                <div className="absolute inset-0 border-2 border-blue-400 pointer-events-none" />
+                            )}
+                        </div>
+                    );
+                })
             )}
         </div>
     );

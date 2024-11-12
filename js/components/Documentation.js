@@ -1,10 +1,13 @@
-const Documentation = ({ onClose }) => {
-    const [activeSection, setActiveSection] = React.useState('getting-started');
-    const [searchQuery, setSearchQuery] = React.useState('');
-    const [expandedItems, setExpandedItems] = React.useState([]);
+import React, { useState } from 'react';
+import { Book, Search, ChevronRight, ExternalLink, ArrowLeft } from 'lucide-react';
 
-    const sections = {
-        'getting-started': {
+const Documentation = ({ onClose }) => {
+    const [currentSection, setCurrentSection] = useState(null);
+    const [currentSubsection, setCurrentSubsection] = useState(null);
+    const [searchQuery, setSearchQuery] = useState('');
+
+    const DOCS_SECTIONS = {
+        'Getting Started': {
             title: 'Getting Started',
             content: [
                 {
@@ -91,120 +94,163 @@ const Documentation = ({ onClose }) => {
         }
     };
 
-    const toggleExpanded = (id) => {
-        setExpandedItems(prev =>
-            prev.includes(id)
-                ? prev.filter(item => item !== id)
-                : [...prev, id]
-        );
+    const handleBack = () => {
+        if (currentSubsection) {
+            setCurrentSubsection(null);
+        } else if (currentSection) {
+            setCurrentSection(null);
+        }
     };
 
-    const filteredSections = React.useMemo(() => {
-        if (!searchQuery) return sections;
-
-        const filtered = {};
-        Object.entries(sections).forEach(([key, section]) => {
-            const matchingContent = section.content.filter(item =>
-                item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                item.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                item.subsections.some(sub =>
-                    sub.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    sub.content.toLowerCase().includes(searchQuery.toLowerCase())
+    const filterContent = (content) => {
+        if (!searchQuery) return content;
+        
+        const sections = {};
+        Object.entries(content).forEach(([section, data]) => {
+            if (section.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                Object.keys(data).some(subsection => 
+                    subsection.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    data[subsection].content.toLowerCase().includes(searchQuery.toLowerCase())
                 )
-            );
-
-            if (matchingContent.length > 0) {
-                filtered[key] = {
-                    ...section,
-                    content: matchingContent
-                };
+            ) {
+                sections[section] = data;
             }
         });
+        return sections;
+    };
 
-        return filtered;
-    }, [searchQuery]);
-
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-[900px] max-w-full mx-4 h-[80vh] flex flex-col">
-                <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold">Documentation</h2>
+    const renderContent = () => {
+        if (currentSection && currentSubsection) {
+            const content = DOCS_SECTIONS[currentSection][currentSubsection];
+            return (
+                <div className="p-6">
                     <button
-                        onClick={onClose}
-                        className="text-gray-500 hover:text-gray-700"
+                        onClick={handleBack}
+                        className="flex items-center gap-2 text-blue-500 mb-4"
                     >
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+                        <ArrowLeft className="w-4 h-4" />
+                        Back
                     </button>
+                    <h2 className="text-2xl font-bold mb-4">{currentSubsection}</h2>
+                    <div className="prose max-w-none">
+                        {content.content.split('\n').map((paragraph, i) => (
+                            <p key={i} className="mb-4">
+                                {paragraph.trim()}
+                            </p>
+                        ))}
+                        {content.subsections && (
+                            <div className="mt-6">
+                                <h3 className="text-lg font-medium mb-3">In this section:</h3>
+                                <ul className="list-disc pl-6 space-y-2">
+                                    {content.subsections.map((subsection, i) => (
+                                        <li key={i}>{subsection}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+                    </div>
                 </div>
+            );
+        }
 
-                <div className="mb-6">
-                    <input
-                        type="text"
-                        placeholder="Search documentation..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full p-2 border rounded"
-                    />
-                </div>
-
-                <div className="flex-1 flex gap-6 overflow-hidden">
-                    {/* Navigation */}
-                    <div className="w-64 overflow-y-auto border-r pr-4">
-                        {Object.entries(filteredSections).map(([key, section]) => (
+        if (currentSection) {
+            return (
+                <div className="p-6">
+                    <button
+                        onClick={handleBack}
+                        className="flex items-center gap-2 text-blue-500 mb-4"
+                    >
+                        <ArrowLeft className="w-4 h-4" />
+                        Back
+                    </button>
+                    <h2 className="text-2xl font-bold mb-6">{currentSection}</h2>
+                    <div className="space-y-4">
+                        {Object.entries(DOCS_SECTIONS[currentSection]).map(([title, data]) => (
                             <button
-                                key={key}
-                                onClick={() => setActiveSection(key)}
-                                className={`w-full text-left px-4 py-2 rounded mb-2 ${
-                                    activeSection === key
-                                        ? 'bg-blue-500 text-white'
-                                        : 'hover:bg-gray-100'
-                                }`}
+                                key={title}
+                                className="w-full text-left p-4 rounded-lg border hover:bg-gray-50"
+                                onClick={() => setCurrentSubsection(title)}
                             >
-                                {section.title}
+                                <div className="flex items-center justify-between">
+                                    <h3 className="font-medium">{title}</h3>
+                                    <ChevronRight className="w-4 h-4 text-gray-400" />
+                                </div>
+                                <p className="text-sm text-gray-600 mt-1">
+                                    {data.content.split('\n')[1].trim().slice(0, 100)}...
+                                </p>
                             </button>
                         ))}
                     </div>
+                </div>
+            );
+        }
 
-                    {/* Content */}
-                    <div className="flex-1 overflow-y-auto">
-                        {filteredSections[activeSection]?.content.map((item, index) => (
-                            <div key={index} className="mb-8">
-                                <h3 className="text-xl font-bold mb-4">{item.title}</h3>
-                                <p className="text-gray-600 mb-4">{item.content}</p>
-                                
-                                {item.subsections.map((sub, subIndex) => (
-                                    <div
-                                        key={subIndex}
-                                        className="border rounded-lg mb-4"
+        const filteredSections = filterContent(DOCS_SECTIONS);
+        return (
+            <div className="p-6">
+                <h2 className="text-2xl font-bold mb-6">Documentation</h2>
+                <div className="space-y-6">
+                    {Object.entries(filteredSections).map(([section, data]) => (
+                        <div key={section}>
+                            <h3 className="font-medium text-lg mb-3">{section}</h3>
+                            <div className="space-y-2">
+                                {Object.keys(data).map(title => (
+                                    <button
+                                        key={title}
+                                        className="w-full text-left p-4 rounded-lg border hover:bg-gray-50"
+                                        onClick={() => {
+                                            setCurrentSection(section);
+                                            setCurrentSubsection(title);
+                                        }}
                                     >
-                                        <button
-                                            onClick={() => toggleExpanded(`${index}-${subIndex}`)}
-                                            className="w-full flex justify-between items-center p-4 hover:bg-gray-50"
-                                        >
-                                            <span className="font-medium">{sub.title}</span>
-                                            <svg
-                                                className={`w-5 h-5 transform transition-transform ${
-                                                    expandedItems.includes(`${index}-${subIndex}`) ? 'rotate-180' : ''
-                                                }`}
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                            </svg>
-                                        </button>
-                                        {expandedItems.includes(`${index}-${subIndex}`) && (
-                                            <div className="p-4 border-t bg-gray-50">
-                                                <p className="text-gray-600">{sub.content}</p>
-                                            </div>
-                                        )}
-                                    </div>
+                                        <div className="flex items-center justify-between">
+                                            <span>{title}</span>
+                                            <ChevronRight className="w-4 h-4 text-gray-400" />
+                                        </div>
+                                    </button>
                                 ))}
                             </div>
-                        ))}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl w-[800px] max-w-full h-[600px] max-h-[90vh] flex flex-col">
+                {/* Header */}
+                <div className="p-4 border-b flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Book className="w-5 h-5" />
+                        <h2 className="text-xl font-semibold">Documentation</h2>
                     </div>
+                    <button
+                        onClick={onClose}
+                        className="text-gray-400 hover:text-gray-500"
+                    >
+                        ×
+                    </button>
+                </div>
+
+                {/* Search */}
+                <div className="p-4 border-b">
+                    <div className="relative">
+                        <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Search documentation..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2 border rounded-lg"
+                        />
+                    </div>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto">
+                    {renderContent()}
                 </div>
             </div>
         </div>

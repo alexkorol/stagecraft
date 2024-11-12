@@ -1,232 +1,163 @@
+import { GRID_SIZES } from '../constants';
+
 class CollisionManager {
-    constructor(gridSize) {
+    constructor(gridSize = GRID_SIZES.SMALL) {
         this.gridSize = gridSize;
-        this.collisionMap = new Map();
-        this.interactionCallbacks = new Map();
+        this.collisionMap = new Map(); // Maps positions to characters
     }
 
-    // Update the collision map with current character positions
+    setGridSize(size) {
+        this.gridSize = size;
+    }
+
+    // Update collision map with current character positions
     updateCollisionMap(characters) {
         this.collisionMap.clear();
-        
         characters.forEach(char => {
-            if (char.x >= 0 && char.x < this.gridSize && 
-                char.y >= 0 && char.y < this.gridSize &&
-                char.isVisible !== false) {
-                const key = `${char.x},${char.y}`;
-                if (!this.collisionMap.has(key)) {
-                    this.collisionMap.set(key, []);
-                }
-                this.collisionMap.get(key).push(char);
+            const key = this.getPositionKey(char.x, char.y);
+            if (!this.collisionMap.has(key)) {
+                this.collisionMap.set(key, []);
             }
+            this.collisionMap.get(key).push(char);
         });
     }
 
-    // Check if a position is occupied
+    // Get position key for collision map
+    getPositionKey(x, y) {
+        return `${x},${y}`;
+    }
+
+    // Check if position is within grid bounds
+    isInBounds(x, y) {
+        return x >= 0 && x < this.gridSize.width && 
+               y >= 0 && y < this.gridSize.height;
+    }
+
+    // Check if position is occupied
     isOccupied(x, y) {
-        const key = `${x},${y}`;
+        const key = this.getPositionKey(x, y);
         return this.collisionMap.has(key) && this.collisionMap.get(key).length > 0;
     }
 
-    // Get characters at a specific position
+    // Get characters at position
     getCharactersAt(x, y) {
-        const key = `${x},${y}`;
+        const key = this.getPositionKey(x, y);
         return this.collisionMap.get(key) || [];
     }
 
-    // Register interaction callback for character types
-    registerInteraction(type1, type2, callback) {
-        const key = `${type1}-${type2}`;
-        this.interactionCallbacks.set(key, callback);
+    // Check if two characters are colliding
+    checkCollision(char1, char2) {
+        return char1.x === char2.x && char1.y === char2.y;
     }
 
-    // Check and handle collisions for all characters
-    checkCollisions(characters) {
-        const collisions = [];
-        
-        this.collisionMap.forEach((chars, position) => {
-            if (chars.length > 1) {
-                // Handle multiple characters in the same cell
-                for (let i = 0; i < chars.length; i++) {
-                    for (let j = i + 1; j < chars.length; j++) {
-                        const char1 = chars[i];
-                        const char2 = chars[j];
-                        
-                        // Check both orderings of character types
-                        const key1 = `${char1.type}-${char2.type}`;
-                        const key2 = `${char2.type}-${char1.type}`;
-                        
-                        const callback = this.interactionCallbacks.get(key1) || 
-                                       this.interactionCallbacks.get(key2);
-                        
-                        if (callback) {
-                            collisions.push({
-                                char1,
-                                char2,
-                                position: position.split(',').map(Number),
-                                callback
-                            });
-                        }
-                    }
-                }
-            }
-        });
-
-        return collisions;
-    }
-
-    // Check for adjacent characters
-    getAdjacentCharacters(x, y) {
-        const adjacent = {
-            up: this.getCharactersAt(x, y - 1),
-            down: this.getCharactersAt(x, y + 1),
-            left: this.getCharactersAt(x - 1, y),
-            right: this.getCharactersAt(x + 1, y)
-        };
-
-        return adjacent;
-    }
-
-    // Check if a character can move to a position
-    canMoveTo(character, x, y) {
-        // Check grid boundaries
-        if (x < 0 || x >= this.gridSize || y < 0 || y >= this.gridSize) {
-            return false;
-        }
-
-        const chars = this.getCharactersAt(x, y);
-        
-        // If no characters, movement is allowed
-        if (chars.length === 0) {
-            return true;
-        }
-
-        // Check if any character blocks movement
-        return !chars.some(char => char.blocksMovement);
-    }
-
-    // Get all characters within a certain range
+    // Get all characters within a certain distance of a position
     getCharactersInRange(x, y, range) {
-        const inRange = [];
-        
+        const characters = [];
         for (let dx = -range; dx <= range; dx++) {
             for (let dy = -range; dy <= range; dy++) {
                 const checkX = x + dx;
                 const checkY = y + dy;
-                
-                if (checkX >= 0 && checkX < this.gridSize && 
-                    checkY >= 0 && checkY < this.gridSize) {
+                if (this.isInBounds(checkX, checkY)) {
                     const chars = this.getCharactersAt(checkX, checkY);
-                    inRange.push(...chars);
+                    characters.push(...chars);
                 }
             }
         }
-
-        return inRange;
+        return characters;
     }
 
-    // Find path between two points (simple A* implementation)
-    findPath(startX, startY, endX, endY) {
-        const openSet = new Set([`${startX},${startY}`]);
-        const cameFrom = new Map();
-        const gScore = new Map([[`${startX},${startY}`, 0]]);
-        const fScore = new Map([[`${startX},${startY}`, this.heuristic(startX, startY, endX, endY)]]);
+    // Check if a move is valid
+    isValidMove(character, newX, newY) {
+        // Check bounds
+        if (!this.isInBounds(newX, newY)) {
+            return false;
+        }
 
-        while (openSet.size > 0) {
-            let current = this.getLowestFScore(openSet, fScore);
-            const [currentX, currentY] = current.split(',').map(Number);
-
-            if (current === `${endX},${endY}`) {
-                return this.reconstructPath(cameFrom, current);
-            }
-
-            openSet.delete(current);
-
-            // Check neighbors
-            const neighbors = this.getValidNeighbors(currentX, currentY);
-            
-            for (const [nextX, nextY] of neighbors) {
-                const next = `${nextX},${nextY}`;
-                const tentativeGScore = gScore.get(current) + 1;
-
-                if (!gScore.has(next) || tentativeGScore < gScore.get(next)) {
-                    cameFrom.set(next, current);
-                    gScore.set(next, tentativeGScore);
-                    fScore.set(next, tentativeGScore + this.heuristic(nextX, nextY, endX, endY));
-                    openSet.add(next);
-                }
+        // Check collisions (if character doesn't allow overlap)
+        if (!character.allowOverlap) {
+            const occupants = this.getCharactersAt(newX, newY);
+            if (occupants.length > 0 && !occupants.every(c => c.id === character.id)) {
+                return false;
             }
         }
 
-        return null; // No path found
+        return true;
     }
 
-    // Manhattan distance heuristic
-    heuristic(x1, y1, x2, y2) {
-        return Math.abs(x1 - x2) + Math.abs(y1 - y2);
+    // Get all collisions in the current state
+    getAllCollisions() {
+        const collisions = [];
+        this.collisionMap.forEach((characters, position) => {
+            if (characters.length > 1) {
+                collisions.push({
+                    position: position.split(',').map(Number),
+                    characters: characters
+                });
+            }
+        });
+        return collisions;
     }
 
-    // Get valid neighboring cells
-    getValidNeighbors(x, y) {
-        const neighbors = [];
-        const directions = [[0, 1], [1, 0], [0, -1], [-1, 0]];
+    // Check if a character can see another character (line of sight)
+    hasLineOfSight(char1, char2, maxDistance = Infinity) {
+        const dx = Math.abs(char2.x - char1.x);
+        const dy = Math.abs(char2.y - char1.y);
+        
+        // Check distance
+        if (Math.max(dx, dy) > maxDistance) {
+            return false;
+        }
 
-        for (const [dx, dy] of directions) {
-            const newX = x + dx;
-            const newY = y + dy;
+        // Bresenham's line algorithm
+        const sx = char1.x < char2.x ? 1 : -1;
+        const sy = char1.y < char2.y ? 1 : -1;
+        let err = dx - dy;
+        let x = char1.x;
+        let y = char1.y;
 
-            if (this.canMoveTo(null, newX, newY)) {
-                neighbors.push([newX, newY]);
+        while (true) {
+            if (x === char2.x && y === char2.y) {
+                return true;
+            }
+
+            // Check for obstacles (characters marked as solid)
+            const chars = this.getCharactersAt(x, y);
+            if (chars.some(c => c.isSolid && c.id !== char1.id && c.id !== char2.id)) {
+                return false;
+            }
+
+            const e2 = 2 * err;
+            if (e2 > -dy) {
+                err -= dy;
+                x += sx;
+            }
+            if (e2 < dx) {
+                err += dx;
+                y += sy;
             }
         }
-
-        return neighbors;
     }
 
-    // Get lowest f-score from open set
-    getLowestFScore(openSet, fScore) {
-        let lowest = null;
-        let lowestScore = Infinity;
+    // Get possible moves for a character
+    getPossibleMoves(character) {
+        const moves = [];
+        const directions = [
+            { dx: 0, dy: -1 }, // up
+            { dx: 0, dy: 1 },  // down
+            { dx: -1, dy: 0 }, // left
+            { dx: 1, dy: 0 }   // right
+        ];
 
-        for (const pos of openSet) {
-            const score = fScore.get(pos);
-            if (score < lowestScore) {
-                lowest = pos;
-                lowestScore = score;
+        directions.forEach(({ dx, dy }) => {
+            const newX = character.x + dx;
+            const newY = character.y + dy;
+            if (this.isValidMove(character, newX, newY)) {
+                moves.push({ x: newX, y: newY });
             }
-        }
+        });
 
-        return lowest;
-    }
-
-    // Reconstruct path from cameFrom map
-    reconstructPath(cameFrom, current) {
-        const path = [current];
-        while (cameFrom.has(current)) {
-            current = cameFrom.get(current);
-            path.unshift(current);
-        }
-        return path;
+        return moves;
     }
 }
 
-// React hook for using CollisionManager
-const useCollisionManager = (gridSize) => {
-    const [collisionManager] = React.useState(() => new CollisionManager(gridSize));
-
-    const updateCollisions = React.useCallback((characters) => {
-        collisionManager.updateCollisionMap(characters);
-        return collisionManager.checkCollisions(characters);
-    }, [collisionManager]);
-
-    return {
-        collisionManager,
-        updateCollisions,
-        isOccupied: collisionManager.isOccupied.bind(collisionManager),
-        getCharactersAt: collisionManager.getCharactersAt.bind(collisionManager),
-        registerInteraction: collisionManager.registerInteraction.bind(collisionManager),
-        findPath: collisionManager.findPath.bind(collisionManager)
-    };
-};
-
-export { CollisionManager, useCollisionManager };
+export default CollisionManager;

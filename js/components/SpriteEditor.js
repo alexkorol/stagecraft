@@ -1,56 +1,207 @@
-const SpriteEditor = ({ onSave, onCancel, initialSprite = null }) => {
-    const [pixelGrid, setPixelGrid] = React.useState(
-        initialSprite || Array(SPRITE_GRID_SIZE).fill().map(() => 
-            Array(SPRITE_GRID_SIZE).fill('#FFFFFF')
-        )
+import React, { useState, useEffect, useCallback } from 'react';
+import { useUndo } from '../utils/UndoManager';
+
+const DEFAULT_SIZE = 16;
+const TOOLS = {
+    PENCIL: 'pencil',
+    LINE: 'line',
+    RECT: 'rectangle',
+    CIRCLE: 'circle',
+    FILL: 'fill',
+    ERASER: 'eraser'
+};
+
+const COLORS = [
+    '#000000', '#FFFFFF', '#FF0000', '#00FF00', '#0000FF', 
+    '#FFFF00', '#FF00FF', '#00FFFF', '#FFA500', '#800080',
+    '#808080', '#C0C0C0', '#800000', '#808000', '#008000',
+    '#800080', '#008080', '#000080'
+];
+
+const SpriteEditor = ({ initialSprite, onSave, onClose }) => {
+    const [size, setSize] = useState(DEFAULT_SIZE);
+    const [frames, setFrames] = useState([]);
+    const [currentFrame, setCurrentFrame] = useState(0);
+    const { 
+        state: pixelGrid, 
+        setState: setPixelGrid, 
+        undo, 
+        redo, 
+        canUndo, 
+        canRedo 
+    } = useUndo(
+        initialSprite?.pixels || 
+        Array(size).fill().map(() => Array(size).fill('#FFFFFF'))
     );
-    const [selectedColor, setSelectedColor] = React.useState('#000000');
-    const [isDrawing, setIsDrawing] = React.useState(false);
-    const [tool, setTool] = React.useState('pencil'); // pencil, fill, eraser
 
-    const handlePixelClick = (x, y) => {
-        const newGrid = [...pixelGrid];
-        
-        if (tool === 'fill') {
-            const targetColor = pixelGrid[y][x];
-            floodFill(newGrid, x, y, targetColor, selectedColor);
-        } else {
-            newGrid[y][x] = tool === 'eraser' ? '#FFFFFF' : selectedColor;
+    const [selectedColor, setSelectedColor] = useState('#000000');
+    const [tool, setTool] = useState(TOOLS.PENCIL);
+    const [isDrawing, setIsDrawing] = useState(false);
+    const [startPos, setStartPos] = useState(null);
+    const [preview, setPreview] = useState(null);
+
+
+
+    // Drawing helpers
+    const drawLine = (start, end, tempGrid) => {
+        const grid = tempGrid || [...pixelGrid];
+        const dx = Math.abs(end.x - start.x);
+        const dy = Math.abs(end.y - start.y);
+        const sx = start.x < end.x ? 1 : -1;
+        const sy = start.y < end.y ? 1 : -1;
+        let err = dx - dy;
+
+        let x = start.x;
+        let y = start.y;
+
+        while (true) {
+            grid[y][x] = selectedColor;
+            if (x === end.x && y === end.y) break;
+            const e2 = 2 * err;
+            if (e2 > -dy) { err -= dy; x += sx; }
+            if (e2 < dx) { err += dx; y += sy; }
         }
-        
-        setPixelGrid(newGrid);
+
+        return grid;
     };
 
-    const handleMouseDown = (x, y) => {
-        setIsDrawing(true);
-        handlePixelClick(x, y);
-    };
+    const drawRect = (start, end, tempGrid) => {
+        const grid = tempGrid || [...pixelGrid];
+        const minX = Math.min(start.x, end.x);
+        const maxX = Math.max(start.x, end.x);
+        const minY = Math.min(start.y, end.y);
+        const maxY = Math.max(start.y, end.y);
 
-    const handleMouseEnter = (x, y) => {
-        if (isDrawing && tool === 'pencil') {
-            handlePixelClick(x, y);
+        for (let y = minY; y <= maxY; y++) {
+            for (let x = minX; x <= maxX; x++) {
+                if (x === minX || x === maxX || y === minY || y === maxY) {
+                    grid[y][x] = selectedColor;
+                }
+            }
         }
+
+        return grid;
     };
 
-    const handleMouseUp = () => {
-        setIsDrawing(false);
+    const drawCircle = (start, end, tempGrid) => {
+        const grid = tempGrid || [...pixelGrid];
+        const centerX = start.x;
+        const centerY = start.y;
+        const radius = Math.sqrt(
+            Math.pow(end.x - start.x, 2) + 
+            Math.pow(end.y - start.y, 2)
+        );
+
+        for (let y = 0; y < size; y++) {
+            for (let x = 0; x < size; x++) {
+                const distance = Math.sqrt(
+                    Math.pow(x - centerX, 2) + 
+                    Math.pow(y - centerY, 2)
+                );
+                if (Math.abs(distance - radius) < 1) {
+                    grid[y][x] = selectedColor;
+                }
+            }
+        }
+
+        return grid;
     };
 
-    const floodFill = (grid, x, y, targetColor, replacementColor) => {
-        if (x < 0 || x >= SPRITE_GRID_SIZE || y < 0 || y >= SPRITE_GRID_SIZE) return;
+    const floodFill = (x, y, targetColor, replacementColor, grid) => {
+        if (x < 0 || x >= size || y < 0 || y >= size) return;
         if (grid[y][x] !== targetColor || grid[y][x] === replacementColor) return;
 
         grid[y][x] = replacementColor;
 
-        floodFill(grid, x + 1, y, targetColor, replacementColor);
-        floodFill(grid, x - 1, y, targetColor, replacementColor);
-        floodFill(grid, x, y + 1, targetColor, replacementColor);
-        floodFill(grid, x, y - 1, targetColor, replacementColor);
+        floodFill(x + 1, y, targetColor, replacementColor, grid);
+        floodFill(x - 1, y, targetColor, replacementColor, grid);
+        floodFill(x, y + 1, targetColor, replacementColor, grid);
+        floodFill(x, y - 1, targetColor, replacementColor, grid);
+    };
+
+    // Event handlers
+    const handleMouseDown = (x, y) => {
+        setIsDrawing(true);
+        setStartPos({ x, y });
+
+        if (tool === TOOLS.PENCIL || tool === TOOLS.ERASER) {
+            const newGrid = [...pixelGrid];
+            newGrid[y][x] = tool === TOOLS.ERASER ? '#FFFFFF' : selectedColor;
+            setPixelGrid(newGrid);
+        }
+    };
+
+    const handleMouseMove = (x, y) => {
+        if (!isDrawing || !startPos) return;
+
+        const tempGrid = [...pixelGrid];
+        let previewGrid;
+
+        switch (tool) {
+            case TOOLS.LINE:
+                previewGrid = drawLine(startPos, { x, y }, tempGrid);
+                break;
+            case TOOLS.RECT:
+                previewGrid = drawRect(startPos, { x, y }, tempGrid);
+                break;
+            case TOOLS.CIRCLE:
+                previewGrid = drawCircle(startPos, { x, y }, tempGrid);
+                break;
+            case TOOLS.PENCIL:
+                tempGrid[y][x] = selectedColor;
+                previewGrid = tempGrid;
+                break;
+            case TOOLS.ERASER:
+                tempGrid[y][x] = '#FFFFFF';
+                previewGrid = tempGrid;
+                break;
+        }
+
+        setPreview(previewGrid);
+    };
+
+    const handleMouseUp = (x, y) => {
+        if (!isDrawing) return;
+
+        let finalGrid;
+        switch (tool) {
+            case TOOLS.LINE:
+                finalGrid = drawLine(startPos, { x, y });
+                break;
+            case TOOLS.RECT:
+                finalGrid = drawRect(startPos, { x, y });
+                break;
+            case TOOLS.CIRCLE:
+                finalGrid = drawCircle(startPos, { x, y });
+                break;
+            case TOOLS.FILL:
+                finalGrid = [...pixelGrid];
+                floodFill(x, y, pixelGrid[y][x], selectedColor, finalGrid);
+                break;
+            default:
+                finalGrid = preview;
+        }
+
+        setPixelGrid(finalGrid);
+        setIsDrawing(false);
+        setStartPos(null);
+        setPreview(null);
+    };
+
+    // Animation frame management
+    const addFrame = () => {
+        setFrames([...frames, pixelGrid]);
+        setCurrentFrame(frames.length);
+    };
+
+    const deleteFrame = (index) => {
+        const newFrames = frames.filter((_, i) => i !== index);
+        setFrames(newFrames);
+        setCurrentFrame(Math.min(currentFrame, newFrames.length - 1));
     };
 
     const clearCanvas = () => {
-        setPixelGrid(Array(SPRITE_GRID_SIZE).fill().map(() => 
-            Array(SPRITE_GRID_SIZE).fill('#FFFFFF')
+        setPixelGrid(Array(8).fill().map(() => Array(8).fill('#FFFFFF')
         ));
     };
 
@@ -65,7 +216,7 @@ const SpriteEditor = ({ onSave, onCancel, initialSprite = null }) => {
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-            <div className="bg-white rounded-lg p-6 w-[500px]">
+            <div className="bg-white rounded-lg p-6 w-[500px] max-w-full">
                 <h2 className="text-xl font-bold mb-4">Sprite Editor</h2>
                 
                 {/* Tools */}

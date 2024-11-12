@@ -1,53 +1,44 @@
 const App = () => {
-    const [project, setProject] = React.useState(null);
+    const [project, setProject] = React.useState({
+        id: 'default',
+        name: 'Untitled Project',
+        gridSize: 8,
+        characters: [],
+        rules: [],
+        settings: {
+            showGrid: true,
+            snapToGrid: true,
+            autoSave: true
+        }
+    });
+
     const [selectedCharacter, setSelectedCharacter] = React.useState(null);
     const [isRunning, setIsRunning] = React.useState(false);
-    const [showSpriteEditor, setShowSpriteEditor] = React.useState(false);
-    const [showRuleEditor, setShowRuleEditor] = React.useState(false);
-    const [showProjectManager, setShowProjectManager] = React.useState(false);
+    const [activeModal, setActiveModal] = React.useState(null);
+    const [showTutorial, setShowTutorial] = React.useState(true);
+
+    // Initialize managers
+    const simulationEngine = React.useRef(null);
+    const undoManager = useUndoManager(project);
+    const { addToast } = useToasts();
 
     React.useEffect(() => {
-        // Load current project on mount
-        const currentProject = StorageManager.getCurrentProject();
-        if (currentProject) {
-            setProject(currentProject);
-        } else {
-            handleNewProject();
+        // Load last project or create new one
+        const savedProject = StorageManager.getCurrentProject();
+        if (savedProject) {
+            setProject(savedProject);
         }
+
+        // Check if tutorial has been completed
+        const tutorialCompleted = localStorage.getItem('tutorial_completed');
+        setShowTutorial(!tutorialCompleted);
     }, []);
 
-    const handleNewProject = () => {
-        const newProject = StorageManager.createNewProject();
-        setProject(newProject);
-        setSelectedCharacter(null);
-    };
-
-    const handleSaveProject = () => {
-        if (project) {
-            const updatedProject = {
-                ...project,
-                modified: new Date().toISOString()
-            };
-            StorageManager.saveProject(updatedProject);
-            setProject(updatedProject);
+    React.useEffect(() => {
+        if (project.settings.autoSave) {
+            StorageManager.saveProject(project);
         }
-    };
-
-    const handleExportProject = () => {
-        if (project) {
-            StorageManager.exportProject(project);
-        }
-    };
-
-    const handleImportProject = async (file) => {
-        try {
-            const importedProject = await StorageManager.importProject(file);
-            setProject(importedProject);
-            setSelectedCharacter(null);
-        } catch (error) {
-            alert('Failed to import project: ' + error.message);
-        }
-    };
+    }, [project]);
 
     const handleAddCharacter = (spriteData) => {
         const newCharacter = {
@@ -58,15 +49,12 @@ const App = () => {
             rules: []
         };
 
-        const updatedProject = {
-            ...project,
-            characters: [...project.characters, newCharacter]
-        };
-
-        setProject(updatedProject);
+        setProject(prev => ({
+            ...prev,
+            characters: [...prev.characters, newCharacter]
+        }));
         setSelectedCharacter(newCharacter);
-        handleSaveProject();
-        setShowSpriteEditor(false);
+        addToast('Character created successfully', 'success');
     };
 
     const handleAddRule = (ruleData) => {
@@ -78,73 +66,82 @@ const App = () => {
             ...ruleData
         };
 
-        const updatedProject = {
-            ...project,
-            rules: [...project.rules, newRule]
-        };
-
-        setProject(updatedProject);
-        handleSaveProject();
-        setShowRuleEditor(false);
+        setProject(prev => ({
+            ...prev,
+            rules: [...prev.rules, newRule]
+        }));
+        addToast('Rule added successfully', 'success');
     };
 
     const handleDeleteCharacter = (characterId) => {
-        const updatedProject = {
-            ...project,
-            characters: project.characters.filter(char => char.id !== characterId),
-            rules: project.rules.filter(rule => rule.characterId !== characterId)
-        };
+        setProject(prev => ({
+            ...prev,
+            characters: prev.characters.filter(char => char.id !== characterId),
+            rules: prev.rules.filter(rule => rule.characterId !== characterId)
+        }));
 
-        setProject(updatedProject);
         if (selectedCharacter?.id === characterId) {
             setSelectedCharacter(null);
         }
-        handleSaveProject();
+        addToast('Character deleted', 'success');
     };
 
     const handleCellClick = (x, y) => {
         if (!selectedCharacter || isRunning) return;
 
-        const updatedProject = {
-            ...project,
-            characters: project.characters.map(char =>
+        setProject(prev => ({
+            ...prev,
+            characters: prev.characters.map(char =>
                 char.id === selectedCharacter.id
                     ? { ...char, x, y }
                     : char
             )
-        };
-
-        setProject(updatedProject);
-        handleSaveProject();
+        }));
     };
 
     const toggleSimulation = () => {
+        if (isRunning) {
+            simulationEngine.current?.stop();
+        } else {
+            simulationEngine.current = new SimulationEngine(project, (updatedProject) => {
+                setProject(updatedProject);
+            });
+            simulationEngine.current.start();
+        }
         setIsRunning(!isRunning);
     };
 
-    if (!project) return <div>Loading...</div>;
+    const openModal = (modalName) => {
+        setActiveModal(modalName);
+    };
+
+    const closeModal = () => {
+        setActiveModal(null);
+    };
 
     return (
         <div className="min-h-screen bg-gray-100 py-6 px-4">
             <div className="max-w-6xl mx-auto">
+                {/* Header */}
                 <header className="flex justify-between items-center mb-6">
                     <h1 className="text-2xl font-bold text-gray-900">StageCraft Creator</h1>
                     <div className="flex gap-2">
                         <button
-                            onClick={() => setShowProjectManager(true)}
-                            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                            onClick={() => openModal('settings')}
+                            className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
                         >
-                            Projects
+                            Settings
                         </button>
                         <button
-                            onClick={handleSaveProject}
-                            className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                            onClick={() => openModal('help')}
+                            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
                         >
-                            Save
+                            Help
                         </button>
                     </div>
                 </header>
 
+                {/* Main Content */}
                 <main className="flex gap-6">
                     <div className="flex-1">
                         <Grid
@@ -163,13 +160,13 @@ const App = () => {
                             characters={project.characters}
                             selectedCharacter={selectedCharacter}
                             onSelectCharacter={setSelectedCharacter}
-                            onAddCharacter={() => setShowSpriteEditor(true)}
+                            onAddCharacter={() => openModal('spriteEditor')}
                             onDeleteCharacter={handleDeleteCharacter}
                         />
 
                         {selectedCharacter && (
                             <button
-                                onClick={() => setShowRuleEditor(true)}
+                                onClick={() => openModal('ruleEditor')}
                                 className="w-full mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
                             >
                                 Add Rule
@@ -188,31 +185,46 @@ const App = () => {
                 </main>
             </div>
 
-            {showSpriteEditor && (
+            {/* Modals */}
+            {activeModal === 'spriteEditor' && (
                 <SpriteEditor
                     onSave={handleAddCharacter}
-                    onCancel={() => setShowSpriteEditor(false)}
+                    onClose={closeModal}
                 />
             )}
 
-            {showRuleEditor && selectedCharacter && (
+            {activeModal === 'ruleEditor' && selectedCharacter && (
                 <RuleEditor
                     character={selectedCharacter}
                     onSave={handleAddRule}
-                    onCancel={() => setShowRuleEditor(false)}
+                    onClose={closeModal}
                 />
             )}
 
-            {showProjectManager && (
-                <ProjectManager
-                    currentProject={project}
-                    onClose={() => setShowProjectManager(false)}
-                    onNew={handleNewProject}
-                    onLoad={setProject}
-                    onImport={handleImportProject}
-                    onExport={handleExportProject}
+            {activeModal === 'settings' && (
+                <Settings
+                    project={project}
+                    onClose={closeModal}
+                    onUpdate={setProject}
                 />
             )}
+
+            {activeModal === 'help' && (
+                <Help onClose={closeModal} />
+            )}
+
+            {showTutorial && (
+                <Tutorial
+                    onClose={() => setShowTutorial(false)}
+                    onComplete={() => {
+                        localStorage.setItem('tutorial_completed', 'true');
+                        setShowTutorial(false);
+                    }}
+                />
+            )}
+
+            {/* Toast Container */}
+            <ToastContainer />
         </div>
     );
 };
